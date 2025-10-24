@@ -17,4 +17,5 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
       - run: ./gradlew --version
       - run: ./gradlew spotlessCheck
-      - run: ./gradlew build -x test
+      - run: ./gradlew test
+      - run: ./gradlew build
