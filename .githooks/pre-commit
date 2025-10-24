@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+./gradlew -q spotlessApply
+# re-stage modified files so the commit includes formatting changes
+git add -A
