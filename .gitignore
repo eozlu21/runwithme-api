@@ -18,6 +18,5 @@
 *.log
 
 
-# Local env
 .env
 .env.*

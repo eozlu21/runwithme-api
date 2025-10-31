@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "2.0.20"
     kotlin("plugin.spring") version "2.0.20"
+    kotlin("plugin.jpa") version "2.0.20"
     id("org.springframework.boot") version "3.3.4"
     id("io.spring.dependency-management") version "1.1.6"
     id("com.diffplug.spotless") version "6.25.0"
@@ -46,8 +47,11 @@ dependencies {
     implementation("org.springframework:spring-messaging")
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
-
+    implementation(kotlin("reflect"))
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
+
+    // Load .env automatically into Spring Environment for local dev
+    implementation("me.paulschwarz:spring-dotenv:4.0.0")
 
     runtimeOnly("org.postgresql:postgresql:42.7.4")
 
