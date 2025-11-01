@@ -1,19 +1,23 @@
 name: Deploy to AWS (Simple)
 
-# This workflow builds the Docker image directly on EC2
-# Use this if you don't want to use ECR or have limited AWS setup
-
+# This workflow deploys to EC2 only after CI succeeds on main
 on:
-  push:
-    branches: [ main ]
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
   workflow_dispatch:
 
 env:
   CONTAINER_NAME: runwithme-api
   APP_PORT: 8080
 
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -127,6 +131,6 @@ jobs:
         run: |
           set -Eeuo pipefail
           echo "Waiting for application to start..."
-          sleep 10
+          sleep 30
           echo "Attempting health check..."
           curl -fsS "http://${HOST}:${{ env.APP_PORT }}/actuator/health" | cat
