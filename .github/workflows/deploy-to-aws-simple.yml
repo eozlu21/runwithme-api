@@ -30,32 +30,70 @@ jobs:
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
           
+          # Ensure target dir exists on EC2 (and create if missing)
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "mkdir -p ~/runwithme-api"
+          
           # Copy files to EC2
           scp -o StrictHostKeyChecking=no -i private_key.pem -r * ${USER}@${HOST}:~/runwithme-api/
           
           # Build and run on EC2
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'EOF'
+            set -Eeuo pipefail
+            
             # Set up PATH for Docker
             export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:$PATH"
             
             # Source docker environment if it exists
             if [ -f /etc/profile.d/docker.sh ]; then
+              # shellcheck disable=SC1091
               source /etc/profile.d/docker.sh
             fi
             
             cd ~/runwithme-api
             
-            DOCKER_CMD=$(which docker)
+            # Resolve Docker binary robustly
+            DOCKER_CMD=""
+            if command -v docker >/dev/null 2>&1; then
+              DOCKER_CMD="$(command -v docker)"
+            elif [ -x /usr/bin/docker ]; then
+              DOCKER_CMD="/usr/bin/docker"
+            elif [ -x /usr/local/bin/docker ]; then
+              DOCKER_CMD="/usr/local/bin/docker"
+            fi
+            
+            if [ -z "${DOCKER_CMD}" ]; then
+              echo "❌ Docker not found in PATH or at common locations."
+              echo "PATH=$PATH"
+              ls -l /usr/bin/docker 2>/dev/null || true
+              ls -l /usr/local/bin/docker 2>/dev/null || true
+              exit 1
+            fi
+            
+            # If docker requires sudo, try passwordless sudo fallback; otherwise fail with guidance
+            if ! ${DOCKER_CMD} info >/dev/null 2>&1; then
+              if command -v sudo >/dev/null 2>&1 && sudo -n ${DOCKER_CMD} info >/dev/null 2>&1; then
+                DOCKER_CMD="sudo -n ${DOCKER_CMD}"
+              else
+                echo "❌ Unable to run Docker. It may require sudo or the user is not in the docker group."
+                echo "Try on the EC2 instance:"
+                echo "  sudo usermod -aG docker $USER && newgrp docker"
+                echo "  sudo systemctl status docker"
+                exit 1
+              fi
+            fi
 
-            # Stop and remove old container
-            $DOCKER_CMD stop ${{ env.CONTAINER_NAME }} || true
-            $DOCKER_CMD rm ${{ env.CONTAINER_NAME }} || true
+            echo "Using Docker at: ${DOCKER_CMD}"
+            ${DOCKER_CMD} --version || true
+
+            # Stop and remove old container (ignore errors if not present)
+            ${DOCKER_CMD} stop ${{ env.CONTAINER_NAME }} || true
+            ${DOCKER_CMD} rm ${{ env.CONTAINER_NAME }} || true
             
             # Build new image
-            $DOCKER_CMD build -t ${{ env.CONTAINER_NAME }}:latest .
+            ${DOCKER_CMD} build -t ${{ env.CONTAINER_NAME }}:latest .
             
             # Run new container
-            $DOCKER_CMD run -d \
+            ${DOCKER_CMD} run -d \
               --name ${{ env.CONTAINER_NAME }} \
               --restart unless-stopped \
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
@@ -65,11 +103,19 @@ jobs:
               -e JAVA_OPTS="-Xms256m -Xmx512m" \
               ${{ env.CONTAINER_NAME }}:latest
             
-            # Clean up old images
-            $DOCKER_CMD image prune -af
+            # Wait briefly and verify container is running
+            sleep 5
+            if ! ${DOCKER_CMD} ps --format '{{.Names}}' | grep -q "^${{ env.CONTAINER_NAME }}$"; then
+              echo "❌ Container ${{ env.CONTAINER_NAME }} is not running. Showing logs:"
+              ${DOCKER_CMD} logs ${{ env.CONTAINER_NAME }} || true
+              exit 1
+            fi
+            
+            # Clean up old images (optional)
+            ${DOCKER_CMD} image prune -af || true
             
             # Show running containers
-            $DOCKER_CMD ps
+            ${DOCKER_CMD} ps
           EOF
           
           # Clean up
@@ -79,9 +125,8 @@ jobs:
         env:
           HOST: ${{ secrets.EC2_HOST }}
         run: |
+          set -Eeuo pipefail
           echo "Waiting for application to start..."
-          sleep 30
-          echo "Deployment completed!"
-          echo "API available at: http://${HOST}:${{ env.APP_PORT }}"
-          echo "Swagger UI: http://${HOST}:${{ env.APP_PORT }}/swagger-ui.html"
-
+          sleep 10
+          echo "Attempting health check..."
+          curl -fsS "http://${HOST}:${{ env.APP_PORT }}/actuator/health" | cat

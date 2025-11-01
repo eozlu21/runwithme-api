@@ -77,7 +77,6 @@ Before deploying to AWS, test locally:
 ## ☑️ Workflow Configuration
 
 - [ ] Review `.github/workflows/deploy-to-aws-simple.yml`
-- [ ] Update `AWS_REGION` if not using eu-central-1
 - [ ] Update `APP_PORT` if not using 8080
 - [ ] Update `CONTAINER_NAME` if desired
 - [ ] Workflow file is committed to repository
@@ -127,92 +126,28 @@ Before deploying to AWS, test locally:
 - [ ] Swagger UI loads: http://YOUR_EC2_IP:8080/swagger-ui.html
 - [ ] Test an actual endpoint through Swagger
 
-## ☑️ Monitoring & Maintenance
-
-### Regular Checks
-- [ ] Monitor container health: `./manage-deployment.sh health`
-- [ ] Check logs periodically: `./manage-deployment.sh logs`
-- [ ] Monitor EC2 disk space: `ssh ... "df -h"`
-- [ ] Monitor EC2 memory: `ssh ... "free -m"`
-
-### Cleanup
-- [ ] Remove old Docker images: `./manage-deployment.sh clean`
-- [ ] Check container restart count: `docker ps`
-- [ ] Review application logs for errors
-
-## ☑️ Troubleshooting
+## ☑️ Troubleshooting (Quick)
 
 If deployment fails, check:
 
-### GitHub Actions Errors
-- [ ] Check Actions tab for error messages
-- [ ] Verify all secrets are set correctly
-- [ ] Check SSH key format (no extra spaces)
-- [ ] Verify EC2_HOST is accessible from internet
-
-### Container Won't Start
-- [ ] Check logs: `./manage-deployment.sh logs`
-- [ ] Verify database connection from EC2
-- [ ] Check environment variables are set
-- [ ] Verify port 8080 is not already in use
-
-### Can't Access API
-- [ ] Check security group allows port 8080
-- [ ] Verify container is running: `./manage-deployment.sh status`
-- [ ] Check EC2 public IP hasn't changed
-- [ ] Test from EC2: `ssh ... "curl localhost:8080/actuator/health"`
-
-### Database Connection Fails
-- [ ] Check database is running
-- [ ] Verify database security group allows EC2
-- [ ] Test connection from EC2: `psql -h ... -U ...`
-- [ ] Check credentials in GitHub secrets
+- GitHub Actions logs
+- Verify all secrets are set correctly
+- Check SSH key format (no extra spaces)
+- Verify EC2_HOST is accessible from internet
+- Check logs: `./manage-deployment.sh logs`
+- Verify database connection from EC2
+- Check environment variables are set
+- Verify port 8080 is not already in use
+- Test from EC2: `ssh ... "curl localhost:8080/actuator/health"`
 
 ## 🎯 Success Criteria
 
 You've successfully deployed when:
 
-✅ GitHub Actions workflow completes successfully
-✅ Container is running on EC2
-✅ Health check returns 200 OK
-✅ Swagger UI is accessible
-✅ API endpoints respond correctly
-✅ Database queries work
-✅ No errors in application logs
-
-## 📚 Quick Reference
-
-| Task | Command |
-|------|---------|
-| Deploy | Push to main branch |
-| Check status | `./manage-deployment.sh status` |
-| View logs | `./manage-deployment.sh logs` |
-| Restart | `./manage-deployment.sh restart` |
-| Health check | `./manage-deployment.sh health` |
-| SSH to EC2 | `./manage-deployment.sh ssh` |
-| Container shell | `./manage-deployment.sh shell` |
-
-## 🆘 Getting Help
-
-If you're stuck:
-
-1. Review error messages carefully
-2. Check all items in this checklist
-3. **Read TROUBLESHOOTING.md** for detailed solutions to common issues
-4. Review troubleshooting section in DEPLOYMENT.md
-5. Check GitHub Actions logs
-6. Check application logs on EC2
-
-### Common Issues Quick Links
-
-See **TROUBLESHOOTING.md** for detailed solutions to:
-- ❗ Docker command not found (non-interactive SSH)
-- ❗ Container won't start
-- ❗ Can't access API
-- ❗ Database connection fails
-- ❗ Disk space issues
-
----
-
-**Good luck with your deployment! 🚀**
-
+- Workflow completes successfully
+- Container is running on EC2
+- Health check returns 200 OK
+- Swagger UI is accessible
+- API endpoints respond correctly
+- Database queries work
+- No errors in application logs
