@@ -14,13 +14,13 @@ open class Student(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "student_id")
-    var studentId: Long? = null,
+    open var studentId: Long? = null,
     @Column(name = "first_name", length = 50, nullable = false)
-    var firstName: String = "",
+    open var firstName: String = "",
     @Column(name = "last_name", length = 50, nullable = false)
-    var lastName: String = "",
+    open var lastName: String = "",
     @Column(name = "date_of_birth", nullable = false)
-    var dateOfBirth: LocalDate = LocalDate.now(),
+    open var dateOfBirth: LocalDate = LocalDate.now(),
     @Column(name = "email", length = 100, unique = true, nullable = false)
-    var email: String = "",
+    open var email: String = "",
 )
