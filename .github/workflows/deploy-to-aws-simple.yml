@@ -45,15 +45,17 @@ jobs:
             
             cd ~/runwithme-api
             
+            DOCKER_CMD=$(which docker)
+
             # Stop and remove old container
-            /usr/bin/docker stop ${{ env.CONTAINER_NAME }} || true
-            /usr/bin/docker rm ${{ env.CONTAINER_NAME }} || true
+            $DOCKER_CMD stop ${{ env.CONTAINER_NAME }} || true
+            $DOCKER_CMD rm ${{ env.CONTAINER_NAME }} || true
             
             # Build new image
-            /usr/bin/docker build -t ${{ env.CONTAINER_NAME }}:latest .
+            $DOCKER_CMD build -t ${{ env.CONTAINER_NAME }}:latest .
             
             # Run new container
-            /usr/bin/docker run -d \
+            $DOCKER_CMD run -d \
               --name ${{ env.CONTAINER_NAME }} \
               --restart unless-stopped \
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
@@ -64,10 +66,10 @@ jobs:
               ${{ env.CONTAINER_NAME }}:latest
             
             # Clean up old images
-            /usr/bin/docker image prune -af
+            $DOCKER_CMD image prune -af
             
             # Show running containers
-            /usr/bin/docker ps
+            $DOCKER_CMD ps
           EOF
           
           # Clean up
