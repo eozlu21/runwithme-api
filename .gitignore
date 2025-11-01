@@ -20,3 +20,8 @@
 
 .env
 .env.*
+
+# EC2 and SSH keys
+.ec2-config
+*.pem
+private_key*

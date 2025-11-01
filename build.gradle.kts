@@ -47,6 +47,7 @@ dependencies {
     implementation("org.springframework:spring-messaging")
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation(kotlin("reflect"))
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
 

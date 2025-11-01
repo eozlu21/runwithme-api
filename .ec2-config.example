@@ -1,0 +1,13 @@
+# EC2 Configuration for manage-deployment.sh
+# Copy this file to .ec2-config and fill in your details
+# DO NOT commit .ec2-config (it's in .gitignore)
+
+# Your EC2 instance public IP or DNS
+EC2_HOST=3.120.179.202
+
+# SSH username (usually 'ec2-user' for Amazon Linux or 'ubuntu' for Ubuntu)
+EC2_USER=ec2-user
+
+# Path to your SSH private key (.pem file)
+EC2_KEY=~/.ssh/your-key.pem
+

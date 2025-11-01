@@ -1,0 +1,77 @@
+name: Deploy to AWS (Simple)
+
+# This workflow builds the Docker image directly on EC2
+# Use this if you don't want to use ECR or have limited AWS setup
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  CONTAINER_NAME: runwithme-api
+  APP_PORT: 8080
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        env:
+          PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+        run: |
+          # Save private key
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Copy files to EC2
+          scp -o StrictHostKeyChecking=no -i private_key.pem -r * ${USER}@${HOST}:~/runwithme-api/
+          
+          # Build and run on EC2
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'EOF'
+            cd ~/runwithme-api
+            
+            # Stop and remove old container
+            docker stop ${{ env.CONTAINER_NAME }} || true
+            docker rm ${{ env.CONTAINER_NAME }} || true
+            
+            # Build new image
+            docker build -t ${{ env.CONTAINER_NAME }}:latest .
+            
+            # Run new container
+            docker run -d \
+              --name ${{ env.CONTAINER_NAME }} \
+              --restart unless-stopped \
+              -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
+              -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
+              -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
+              -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
+              -e JAVA_OPTS="-Xms256m -Xmx512m" \
+              ${{ env.CONTAINER_NAME }}:latest
+            
+            # Clean up old images
+            docker image prune -af
+            
+            # Show running containers
+            docker ps
+          EOF
+          
+          # Clean up
+          rm -f private_key.pem
+
+      - name: Verify deployment
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          echo "Waiting for application to start..."
+          sleep 30
+          echo "Deployment completed!"
+          echo "API available at: http://${HOST}:${{ env.APP_PORT }}"
+          echo "Swagger UI: http://${HOST}:${{ env.APP_PORT }}/swagger-ui.html"
+

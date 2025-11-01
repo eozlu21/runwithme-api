@@ -1,8 +1,38 @@
+# Build outputs
 .gradle
 build
+*.jar
+!build/libs/*.jar
+
+# Git
 .git
 .gitignore
+.githooks
+.github
+.gitattributes
+
+# IDEs
 .vscode
 .idea
 *.iml
+.kotlin
+
+# Environment and configs
 .env*
+*.pem
+private_key*
+
+# Documentation (not needed in container)
+*.md
+HELP.md
+
+# Test outputs
+test-results
+
+# Scripts (not needed in container)
+setup-ec2.sh
+test-deployment.sh
+
+# Misc
+.DS_Store
+*.log
