@@ -29,7 +29,7 @@ jobs:
           # Save private key
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
-          
+          ls -a
           # Ensure target dir exists on EC2 (and create if missing)
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "mkdir -p ~/runwithme-api"
           
