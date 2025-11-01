@@ -73,17 +73,25 @@ jobs:
           
           # Deploy to EC2
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'EOF'
+            # Set up PATH for Docker and AWS CLI
+            export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:$PATH"
+            
+            # Source docker environment if it exists
+            if [ -f /etc/profile.d/docker.sh ]; then
+              source /etc/profile.d/docker.sh
+            fi
+            
             # Login to ECR
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+            /usr/bin/aws ecr get-login-password --region ${{ env.AWS_REGION }} | /usr/bin/docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
             
             # Stop and remove old container
-            docker stop ${{ env.CONTAINER_NAME }} || true
-            docker rm ${{ env.CONTAINER_NAME }} || true
+            /usr/bin/docker stop ${{ env.CONTAINER_NAME }} || true
+            /usr/bin/docker rm ${{ env.CONTAINER_NAME }} || true
             
             # Pull and run new container
-            docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            /usr/bin/docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
             
-            docker run -d \
+            /usr/bin/docker run -d \
               --name ${{ env.CONTAINER_NAME }} \
               --restart unless-stopped \
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
@@ -94,7 +102,7 @@ jobs:
               ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
             
             # Clean up old images
-            docker image prune -af
+            /usr/bin/docker image prune -af
           EOF
           
           # Clean up private key

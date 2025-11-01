@@ -198,9 +198,19 @@ If you're stuck:
 
 1. Review error messages carefully
 2. Check all items in this checklist
-3. Review troubleshooting section in DEPLOYMENT.md
-4. Check GitHub Actions logs
-5. Check application logs on EC2
+3. **Read TROUBLESHOOTING.md** for detailed solutions to common issues
+4. Review troubleshooting section in DEPLOYMENT.md
+5. Check GitHub Actions logs
+6. Check application logs on EC2
+
+### Common Issues Quick Links
+
+See **TROUBLESHOOTING.md** for detailed solutions to:
+- ❗ Docker command not found (non-interactive SSH)
+- ❗ Container won't start
+- ❗ Can't access API
+- ❗ Database connection fails
+- ❗ Disk space issues
 
 ---
 

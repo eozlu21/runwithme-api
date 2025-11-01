@@ -35,17 +35,25 @@ jobs:
           
           # Build and run on EC2
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'EOF'
+            # Set up PATH for Docker
+            export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:$PATH"
+            
+            # Source docker environment if it exists
+            if [ -f /etc/profile.d/docker.sh ]; then
+              source /etc/profile.d/docker.sh
+            fi
+            
             cd ~/runwithme-api
             
             # Stop and remove old container
-            docker stop ${{ env.CONTAINER_NAME }} || true
-            docker rm ${{ env.CONTAINER_NAME }} || true
+            /usr/bin/docker stop ${{ env.CONTAINER_NAME }} || true
+            /usr/bin/docker rm ${{ env.CONTAINER_NAME }} || true
             
             # Build new image
-            docker build -t ${{ env.CONTAINER_NAME }}:latest .
+            /usr/bin/docker build -t ${{ env.CONTAINER_NAME }}:latest .
             
             # Run new container
-            docker run -d \
+            /usr/bin/docker run -d \
               --name ${{ env.CONTAINER_NAME }} \
               --restart unless-stopped \
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
@@ -56,10 +64,10 @@ jobs:
               ${{ env.CONTAINER_NAME }}:latest
             
             # Clean up old images
-            docker image prune -af
+            /usr/bin/docker image prune -af
             
             # Show running containers
-            docker ps
+            /usr/bin/docker ps
           EOF
           
           # Clean up
