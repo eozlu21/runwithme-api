@@ -1,28 +1,43 @@
-name: Deploy to AWS (Simple)
+name: CI + Deploy
 
-# This workflow deploys to EC2 only after CI succeeds on main
 on:
-  workflow_run:
-    workflows: ["ci"]
-    types: [completed]
+  push:
+    branches: [ main ]
+  pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 env:
   CONTAINER_NAME: runwithme-api
   APP_PORT: 8080
 
 concurrency:
-  group: deploy-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref }}
-  cancel-in-progress: false
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  deploy:
-    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
+  verify:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v3
+      - run: ./gradlew --version
+      - run: ./gradlew spotlessCheck
+      - run: ./gradlew test
+      - run: ./gradlew build
+
+  deploy:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Deploy to EC2
         env:
@@ -30,32 +45,22 @@ jobs:
           HOST: ${{ secrets.EC2_HOST }}
           USER: ${{ secrets.EC2_USER }}
         run: |
-          # Save private key
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
 
-          # Ensure target dir exists on EC2 (and create if missing)
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "mkdir -p ~/runwithme-api"
-
-          # Copy files to EC2 reliably (include dotfiles)
           tar czf - . | ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "tar xzf - -C ~/runwithme-api"
 
-          # Build and run on EC2
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'EOF'
             set -Eeuo pipefail
-            
-            # Set up PATH for Docker
             export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:$PATH"
-            
-            # Source docker environment if it exists
+
             if [ -f /etc/profile.d/docker.sh ]; then
-              # shellcheck disable=SC1091
               source /etc/profile.d/docker.sh
             fi
-            
+
             cd ~/runwithme-api
-            
-            # Resolve Docker binary robustly
+
             DOCKER_CMD=""
             if command -v docker >/dev/null 2>&1; then
               DOCKER_CMD="$(command -v docker)"
@@ -64,39 +69,26 @@ jobs:
             elif [ -x /usr/local/bin/docker ]; then
               DOCKER_CMD="/usr/local/bin/docker"
             fi
-            
+
             if [ -z "${DOCKER_CMD}" ]; then
-              echo "❌ Docker not found in PATH or at common locations."
-              echo "PATH=$PATH"
-              ls -l /usr/bin/docker 2>/dev/null || true
-              ls -l /usr/local/bin/docker 2>/dev/null || true
+              echo "Docker not found"
               exit 1
             fi
-            
-            # If docker requires sudo, try passwordless sudo fallback; otherwise fail with guidance
+
             if ! ${DOCKER_CMD} info >/dev/null 2>&1; then
               if command -v sudo >/dev/null 2>&1 && sudo -n ${DOCKER_CMD} info >/dev/null 2>&1; then
                 DOCKER_CMD="sudo -n ${DOCKER_CMD}"
               else
-                echo "❌ Unable to run Docker. It may require sudo or the user is not in the docker group."
-                echo "Try on the EC2 instance:"
-                echo "  sudo usermod -aG docker $USER && newgrp docker"
-                echo "  sudo systemctl status docker"
+                echo "Cannot run Docker. Add user to docker group or enable sudo."
                 exit 1
               fi
             fi
 
-            echo "Using Docker at: ${DOCKER_CMD}"
-            ${DOCKER_CMD} --version || true
-
-            # Stop and remove old container (ignore errors if not present)
             ${DOCKER_CMD} stop ${{ env.CONTAINER_NAME }} || true
             ${DOCKER_CMD} rm ${{ env.CONTAINER_NAME }} || true
-            
-            # Build new image
+
             ${DOCKER_CMD} build -t ${{ env.CONTAINER_NAME }}:latest .
-            
-            # Run new container
+
             ${DOCKER_CMD} run -d \
               --name ${{ env.CONTAINER_NAME }} \
               --restart unless-stopped \
@@ -106,23 +98,17 @@ jobs:
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
               -e JAVA_OPTS="-Xms256m -Xmx512m" \
               ${{ env.CONTAINER_NAME }}:latest
-            
-            # Wait briefly and verify container is running
+
             sleep 5
             if ! ${DOCKER_CMD} ps --format '{{.Names}}' | grep -q "^${{ env.CONTAINER_NAME }}$"; then
-              echo "❌ Container ${{ env.CONTAINER_NAME }} is not running. Showing logs:"
               ${DOCKER_CMD} logs ${{ env.CONTAINER_NAME }} || true
               exit 1
             fi
-            
-            # Clean up old images (optional)
+
             ${DOCKER_CMD} image prune -af || true
-            
-            # Show running containers
             ${DOCKER_CMD} ps
           EOF
-          
-          # Clean up
+
           rm -f private_key.pem
 
       - name: Verify deployment
@@ -130,7 +116,5 @@ jobs:
           HOST: ${{ secrets.EC2_HOST }}
         run: |
           set -Eeuo pipefail
-          echo "Waiting for application to start..."
           sleep 30
-          echo "Attempting health check..."
           curl -fsS "http://${HOST}:${{ env.APP_PORT }}/actuator/health" | cat
