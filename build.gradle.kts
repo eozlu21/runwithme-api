@@ -12,7 +12,7 @@ spotless {
         target("**/*.kt")
         ktlint("1.3.1").editorConfigOverride(
             mapOf(
-                "ktlint_code_style" to "official",
+                "ktlint_code_style" to "ktlint_official",
                 "indent_size" to "4",
                 "max_line_length" to "120",
                 "end_of_line" to "lf",
