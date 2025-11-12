@@ -7,7 +7,7 @@ import jakarta.persistence.Table
 import java.time.LocalDate
 
 @Entity
-@Table(name = "user_profile")
+@Table(name = "user_profiles")
 open class UserProfile(
     @Id
     @Column(name = "user_id")

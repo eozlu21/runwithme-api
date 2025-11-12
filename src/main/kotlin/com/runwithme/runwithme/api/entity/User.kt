@@ -9,7 +9,7 @@ import jakarta.persistence.Table
 import java.time.OffsetDateTime
 
 @Entity
-@Table(name = "user")
+@Table(name = "users")
 open class User(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
