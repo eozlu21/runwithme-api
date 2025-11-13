@@ -24,6 +24,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.CONTAINER_NAME }}:latest .
+          docker save ${{ env.CONTAINER_NAME }}:latest | gzip > app-image.tar.gz
+
       - name: Deploy to EC2
         env:
           PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
@@ -37,10 +42,10 @@ jobs:
           # Ensure target dir exists on EC2 (and create if missing)
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "mkdir -p ~/runwithme-api"
 
-          # Copy files to EC2 reliably (include dotfiles)
-          tar czf - . | ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "tar xzf - -C ~/runwithme-api"
+          # Copy pre-built Docker image to EC2
+          scp -o StrictHostKeyChecking=no -i private_key.pem app-image.tar.gz ${USER}@${HOST}:~/runwithme-api/
 
-          # Build and run on EC2
+          # Load and run on EC2
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'EOF'
             set -Eeuo pipefail
             
@@ -93,8 +98,9 @@ jobs:
             ${DOCKER_CMD} stop ${{ env.CONTAINER_NAME }} || true
             ${DOCKER_CMD} rm ${{ env.CONTAINER_NAME }} || true
             
-            # Build new image
-            ${DOCKER_CMD} build -t ${{ env.CONTAINER_NAME }}:latest .
+            # Load pre-built image
+            echo "Loading Docker image..."
+            gunzip -c app-image.tar.gz | ${DOCKER_CMD} load
             
             # Run new container
             ${DOCKER_CMD} run -d \
@@ -115,6 +121,9 @@ jobs:
               exit 1
             fi
             
+            # Clean up transferred image file
+            rm -f app-image.tar.gz
+            
             # Clean up old images (optional)
             ${DOCKER_CMD} image prune -af || true
             
@@ -123,7 +132,7 @@ jobs:
           EOF
           
           # Clean up
-          rm -f private_key.pem
+          rm -f private_key.pem app-image.tar.gz
 
       - name: Verify deployment
         env:
