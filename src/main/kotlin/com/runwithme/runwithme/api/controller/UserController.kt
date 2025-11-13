@@ -1,6 +1,5 @@
 package com.runwithme.runwithme.api.controller
 
-import com.runwithme.runwithme.api.dto.CreateUserRequest
 import com.runwithme.runwithme.api.dto.PageResponse
 import com.runwithme.runwithme.api.dto.UpdateUserRequest
 import com.runwithme.runwithme.api.dto.UserDto
@@ -17,7 +16,6 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -122,35 +120,15 @@ class UserController(
         return if (user != null) ResponseEntity.ok(user) else ResponseEntity.status(HttpStatus.NOT_FOUND).build()
     }
 
-    @PostMapping
-    @Operation(
-        summary = "Create a new user",
-        description = "Creates a new user account",
-    )
-    @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "201",
-                description = "User created successfully",
-                content = [Content(schema = Schema(implementation = UserDto::class))],
-            ),
-            ApiResponse(responseCode = "400", description = "Invalid request or user already exists"),
-        ],
-    )
-    fun createUser(
-        @RequestBody request: CreateUserRequest,
-    ): ResponseEntity<Any> =
-        try {
-            val user = userService.createUser(request)
-            ResponseEntity.status(HttpStatus.CREATED).body(user)
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST).body(mapOf("error" to e.message))
-        }
+    // Note: User creation is handled by /api/v1/auth/register endpoint
+    // This keeps authentication flow separate and provides JWT tokens on registration
 
     @PutMapping("/{id}")
     @Operation(
         summary = "Update user",
-        description = "Updates an existing user",
+        description =
+            "Updates an existing user. Note: For password changes, consider implementing a separate " +
+                "change-password endpoint that requires old password verification.",
     )
     @ApiResponses(
         value = [

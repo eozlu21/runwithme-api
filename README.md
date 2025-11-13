@@ -32,6 +32,31 @@ cp .env.example .env
 - API Docs: http://localhost:8080/v3/api-docs
 - Health Check: http://localhost:8080/actuator/health
 
+### 🔐 JWT Authentication
+All `/api/v1/**` endpoints require JWT authentication (except `/api/v1/auth/**`).
+
+**Quick test:**
+```bash
+./quickstart-jwt.sh
+```
+
+**Documentation:**
+- 📖 Full guide: [JWT_AUTHENTICATION_GUIDE.md](JWT_AUTHENTICATION_GUIDE.md)
+- ⚡ Quick reference: [JWT_QUICK_REFERENCE.md](JWT_QUICK_REFERENCE.md)
+- 📝 Implementation: [JWT_IMPLEMENTATION_SUMMARY.md](JWT_IMPLEMENTATION_SUMMARY.md)
+
+**Basic usage:**
+```bash
+# Register
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "john", "email": "john@test.com", "password": "pass123"}'
+
+# Use the returned accessToken
+curl -X GET http://localhost:8080/api/v1/users \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
 ## Deploy to AWS (Simple)
 
 This repository includes a simple GitHub Actions workflow that builds the Docker image directly on your EC2 instance and runs it.
@@ -45,6 +70,7 @@ Required GitHub Secrets:
 - `EC2_USER` – SSH user (e.g., `ubuntu` for Ubuntu AMIs)
 - `EC2_SSH_PRIVATE_KEY` – Private key contents for SSH (BEGIN/END lines included)
 - `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
+- `JWT_SECRET` – Secret key for JWT token signing (generate with `openssl rand -base64 64`)
 
 Trigger a deploy by pushing to `main` or running the workflow manually.
 

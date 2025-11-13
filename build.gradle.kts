@@ -51,6 +51,11 @@ dependencies {
     implementation(kotlin("reflect"))
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
 
+    // JWT
+    implementation("io.jsonwebtoken:jjwt-api:0.12.5")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.5")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.5")
+
     // Load .env automatically into Spring Environment for local dev
     implementation("me.paulschwarz:spring-dotenv:4.0.0")
 
