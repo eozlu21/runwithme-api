@@ -22,7 +22,14 @@ class JwtTokenProvider {
     private var refreshExpiration: Long = 0
 
     private fun getSigningKey(): SecretKey {
-        val keyBytes = Decoders.BASE64.decode(jwtSecret)
+        val keyBytes =
+            try {
+                // Try to decode as base64 first
+                Decoders.BASE64.decode(jwtSecret)
+            } catch (_: Exception) {
+                // If that fails, use the string directly as UTF-8 bytes
+                jwtSecret.toByteArray()
+            }
         return Keys.hmacShaKeyFor(keyBytes)
     }
 
