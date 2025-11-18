@@ -5,6 +5,7 @@ import com.runwithme.runwithme.api.dto.PageResponse
 import com.runwithme.runwithme.api.dto.UpdateUserRequest
 import com.runwithme.runwithme.api.dto.UserDto
 import com.runwithme.runwithme.api.entity.User
+import com.runwithme.runwithme.api.exception.DuplicateResourceException
 import com.runwithme.runwithme.api.repository.UserRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -42,13 +43,19 @@ class UserService(
     fun getUserByEmail(email: String): UserDto? =
         userRepository.findByEmail(email).map(UserDto::fromEntity).orElse(null)
 
+    fun getUserIdByUsername(username: String): Long? =
+        userRepository
+            .findByUsername(username)
+            .map { it.userId }
+            .orElse(null)
+
     @Transactional
     fun createUser(request: CreateUserRequest): UserDto {
         if (userRepository.existsByUsername(request.username)) {
-            throw IllegalArgumentException("Username already exists")
+            throw DuplicateResourceException("username", "Username already exists")
         }
         if (userRepository.existsByEmail(request.email)) {
-            throw IllegalArgumentException("Email already exists")
+            throw DuplicateResourceException("email", "Email already exists")
         }
 
         val user =
@@ -71,14 +78,14 @@ class UserService(
 
         request.username?.let {
             if (it != user.username && userRepository.existsByUsername(it)) {
-                throw IllegalArgumentException("Username already exists")
+                throw DuplicateResourceException("username", "Username already exists")
             }
             user.username = it
         }
 
         request.email?.let {
             if (it != user.email && userRepository.existsByEmail(it)) {
-                throw IllegalArgumentException("Email already exists")
+                throw DuplicateResourceException("email", "Email already exists")
             }
             user.email = it
         }

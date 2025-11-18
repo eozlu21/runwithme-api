@@ -5,6 +5,7 @@ import com.runwithme.runwithme.api.dto.PageResponse
 import com.runwithme.runwithme.api.dto.UpdateUserProfileRequest
 import com.runwithme.runwithme.api.dto.UserProfileDto
 import com.runwithme.runwithme.api.entity.UserProfile
+import com.runwithme.runwithme.api.exception.UnauthorizedActionException
 import com.runwithme.runwithme.api.repository.UserProfileRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -35,7 +36,13 @@ class UserProfileService(
         userProfileRepository.findById(id).map(UserProfileDto::fromEntity).orElse(null)
 
     @Transactional
-    fun createUserProfile(request: CreateUserProfileRequest): UserProfileDto {
+    fun createUserProfile(
+        request: CreateUserProfileRequest,
+        authenticatedUserId: Long,
+    ): UserProfileDto {
+        if (request.userId != authenticatedUserId) {
+            throw UnauthorizedActionException("You can only create your own profile")
+        }
         if (userProfileRepository.existsById(request.userId)) {
             throw IllegalArgumentException("User profile already exists for user ID: ${request.userId}")
         }
@@ -64,8 +71,12 @@ class UserProfileService(
     fun updateUserProfile(
         id: Long,
         request: UpdateUserProfileRequest,
+        authenticatedUserId: Long,
     ): UserProfileDto? {
         val userProfile = userProfileRepository.findById(id).orElse(null) ?: return null
+        if (userProfile.userId != authenticatedUserId) {
+            throw UnauthorizedActionException("You can only update your own profile")
+        }
 
         request.firstName?.let { userProfile.firstName = it }
         request.lastName?.let { userProfile.lastName = it }

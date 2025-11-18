@@ -5,6 +5,7 @@ import com.runwithme.runwithme.api.dto.LoginRequest
 import com.runwithme.runwithme.api.dto.RegisterRequest
 import com.runwithme.runwithme.api.dto.UserDto
 import com.runwithme.runwithme.api.entity.User
+import com.runwithme.runwithme.api.exception.DuplicateResourceException
 import com.runwithme.runwithme.api.repository.UserRepository
 import com.runwithme.runwithme.api.security.JwtTokenProvider
 import org.springframework.security.authentication.AuthenticationManager
@@ -24,10 +25,10 @@ class AuthService(
     @Transactional
     fun register(request: RegisterRequest): AuthResponse {
         if (userRepository.existsByUsername(request.username)) {
-            throw IllegalArgumentException("Username already exists")
+            throw DuplicateResourceException("username", "Username already exists")
         }
         if (userRepository.existsByEmail(request.email)) {
-            throw IllegalArgumentException("Email already exists")
+            throw DuplicateResourceException("email", "Email already exists")
         }
 
         val user =
