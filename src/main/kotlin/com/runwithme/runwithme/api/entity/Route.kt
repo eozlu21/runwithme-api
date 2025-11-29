@@ -20,7 +20,7 @@ open class Route(
     @Column(name = "title", columnDefinition = "TEXT") open var title: String? = null,
     @Column(name = "description", columnDefinition = "TEXT")
     open var description: String? = null,
-    @Column(name = "distance_m", precision = 10, scale = 2) open var distanceM: Double? = null,
+    @Column(name = "distance_m") open var distanceM: Double? = null,
     @Column(name = "estimated_duration_s") open var estimatedDurationS: Int? = null,
     @Column(name = "difficulty", columnDefinition = "TEXT") open var difficulty: String? = null,
     @Column(name = "is_public", nullable = false) open var isPublic: Boolean = true,

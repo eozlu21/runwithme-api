@@ -15,12 +15,9 @@ open class RoutePoint(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "point_id")
     open var pointId: Long? = null,
-    @Column(name = "route_id")
-    open var routeId: Long? = null,
-    @Column(name = "seq_no")
-    open var seqNo: Int? = null,
+    @Column(name = "route_id") open var routeId: Long? = null,
+    @Column(name = "seq_no") open var seqNo: Int? = null,
     @Column(name = "point_geom", columnDefinition = "geography(Point,4326)")
     open var pointGeom: Point? = null,
-    @Column(name = "elevation_m", precision = 10, scale = 2)
-    open var elevationM: Double? = null,
+    @Column(name = "elevation_m") open var elevationM: Double? = null,
 )
