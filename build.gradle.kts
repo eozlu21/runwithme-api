@@ -61,6 +61,10 @@ dependencies {
 
     runtimeOnly("org.postgresql:postgresql:42.7.4")
 
+    // PostGIS and JTS for geospatial data
+    implementation("org.locationtech.jts:jts-core:1.19.0")
+    implementation("org.hibernate:hibernate-spatial:6.3.1.Final")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
 }
