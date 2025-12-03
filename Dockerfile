@@ -10,4 +10,7 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /app/build/libs/*-SNAPSHOT.jar app.jar
 ENV JAVA_OPTS=""
+# Mail credentials - pass these at runtime via -e or docker-compose
+ENV MAIL_USERNAME=""
+ENV MAIL_PASSWORD=""
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

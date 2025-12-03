@@ -3,7 +3,7 @@ name: ci-and-deploy
 # Unified CI + Deploy workflow with a job graph
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -29,7 +29,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
       - uses: gradle/actions/setup-gradle@v3
       - run: ./gradlew --version
       - run: ./gradlew spotlessCheck
@@ -74,18 +74,18 @@ jobs:
           # Load and run on EC2
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'EOF'
             set -Eeuo pipefail
-          
+
             # Set up PATH for Docker
             export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:$PATH"
-          
+
             # Source docker environment if it exists
             if [ -f /etc/profile.d/docker.sh ]; then
               # shellcheck disable=SC1091
               source /etc/profile.d/docker.sh
             fi
-          
+
             cd ~/runwithme-api
-          
+
             # Resolve Docker binary robustly
             DOCKER_CMD=""
             if command -v docker >/dev/null 2>&1; then
@@ -95,7 +95,7 @@ jobs:
             elif [ -x /usr/local/bin/docker ]; then
               DOCKER_CMD="/usr/local/bin/docker"
             fi
-          
+
             if [ -z "${DOCKER_CMD}" ]; then
               echo "❌ Docker not found in PATH or at common locations."
               echo "PATH=$PATH"
@@ -103,7 +103,7 @@ jobs:
               ls -l /usr/local/bin/docker 2>/dev/null || true
               exit 1
             fi
-          
+
             # If docker requires sudo, try passwordless sudo fallback; otherwise fail with guidance
             if ! ${DOCKER_CMD} info >/dev/null 2>&1; then
               if command -v sudo >/dev/null 2>&1 && sudo -n ${DOCKER_CMD} info >/dev/null 2>&1; then
@@ -123,11 +123,11 @@ jobs:
             # Stop and remove old container (ignore errors if not present)
             ${DOCKER_CMD} stop ${{ env.CONTAINER_NAME }} || true
             ${DOCKER_CMD} rm ${{ env.CONTAINER_NAME }} || true
-          
+
             # Load pre-built image
             echo "Loading Docker image..."
             gunzip -c app-image.tar.gz | ${DOCKER_CMD} load
-          
+
             # Run new container
             ${DOCKER_CMD} run -d \
               --name ${{ env.CONTAINER_NAME }} \
@@ -137,9 +137,11 @@ jobs:
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
               -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              -e MAIL_USERNAME="${{ secrets.MAIL_USERNAME }}" \
+              -e MAIL_PASSWORD="${{ secrets.MAIL_PASSWORD }}" \
               -e JAVA_OPTS="-Xms256m -Xmx512m" \
               ${{ env.CONTAINER_NAME }}:latest
-          
+
             # Wait briefly and verify container is running
             sleep 5
             if ! ${DOCKER_CMD} ps --format '{{.Names}}' | grep -q "^${{ env.CONTAINER_NAME }}$"; then
@@ -147,17 +149,17 @@ jobs:
               ${DOCKER_CMD} logs ${{ env.CONTAINER_NAME }} || true
               exit 1
             fi
-          
+
             # Clean up transferred image file
             rm -f app-image.tar.gz
-          
+
             # Clean up old images (optional)
             ${DOCKER_CMD} image prune -af || true
-          
+
             # Show running containers
             ${DOCKER_CMD} ps
           EOF
-          
+
           # Clean up
           rm -f private_key.pem app-image.tar.gz
 
