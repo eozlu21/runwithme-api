@@ -15,12 +15,10 @@ open class User(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
     open var userId: Long? = null,
-    @Column(name = "username", nullable = false)
-    open var username: String = "",
-    @Column(name = "email", nullable = false)
-    open var email: String = "",
-    @Column(name = "password_hash", nullable = false)
-    open var passwordHash: String = "",
+    @Column(name = "username", nullable = false) open var username: String = "",
+    @Column(name = "email", nullable = false) open var email: String = "",
+    @Column(name = "password_hash", nullable = false) open var passwordHash: String = "",
     @Column(name = "created_at", nullable = false)
     open var createdAt: OffsetDateTime = OffsetDateTime.now(),
+    @Column(name = "email_verified", nullable = false) open var emailVerified: Boolean = false,
 )

@@ -3,9 +3,12 @@ package com.runwithme.runwithme.api.service
 import com.runwithme.runwithme.api.dto.AuthResponse
 import com.runwithme.runwithme.api.dto.LoginRequest
 import com.runwithme.runwithme.api.dto.RegisterRequest
+import com.runwithme.runwithme.api.dto.RegisterResponse
 import com.runwithme.runwithme.api.dto.UserDto
+import com.runwithme.runwithme.api.dto.VerificationResponse
 import com.runwithme.runwithme.api.entity.User
 import com.runwithme.runwithme.api.exception.DuplicateResourceException
+import com.runwithme.runwithme.api.exception.EmailNotVerifiedException
 import com.runwithme.runwithme.api.repository.UserRepository
 import com.runwithme.runwithme.api.security.JwtTokenProvider
 import org.springframework.security.authentication.AuthenticationManager
@@ -21,9 +24,10 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenProvider: JwtTokenProvider,
     private val authenticationManager: AuthenticationManager,
+    private val emailService: EmailService,
 ) {
     @Transactional
-    fun register(request: RegisterRequest): AuthResponse {
+    fun register(request: RegisterRequest): RegisterResponse {
         if (userRepository.existsByUsername(request.username)) {
             throw DuplicateResourceException("username", "Username already exists")
         }
@@ -37,16 +41,23 @@ class AuthService(
                 email = request.email,
                 passwordHash = passwordEncoder.encode(request.password),
                 createdAt = OffsetDateTime.now(),
+                emailVerified = false,
             )
 
         val savedUser = userRepository.save(user)
-        val accessToken = jwtTokenProvider.generateToken(savedUser.username)
-        val refreshToken = jwtTokenProvider.generateRefreshToken(savedUser.username)
 
-        return AuthResponse(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            user = UserDto.fromEntity(savedUser),
+        // Create and send verification token
+        val verificationToken = emailService.createVerificationToken(savedUser)
+        emailService.sendVerificationEmail(savedUser, verificationToken.token)
+
+        // Mask email for response (e.g., j***n@example.com)
+        val maskedEmail = maskEmail(savedUser.email)
+
+        return RegisterResponse(
+            message =
+                "Registration successful. Please check your email to verify your account.",
+            emailVerificationRequired = true,
+            email = maskedEmail,
         )
     }
 
@@ -59,9 +70,14 @@ class AuthService(
         )
 
         val user =
-            userRepository
-                .findByUsername(request.username)
-                .orElseThrow { IllegalArgumentException("Invalid username or password") }
+            userRepository.findByUsername(request.username).orElseThrow {
+                IllegalArgumentException("Invalid username or password")
+            }
+
+        // Check if email is verified
+        if (!user.emailVerified) {
+            throw EmailNotVerifiedException()
+        }
 
         val accessToken = jwtTokenProvider.generateToken(user.username)
         val refreshToken = jwtTokenProvider.generateRefreshToken(user.username)
@@ -73,6 +89,62 @@ class AuthService(
         )
     }
 
+    @Transactional
+    fun verifyEmail(token: String): VerificationResponse {
+        val verificationToken =
+            emailService.findByToken(token)
+                ?: return VerificationResponse(
+                    message = "Invalid verification token.",
+                    success = false,
+                )
+
+        if (verificationToken.isExpired()) {
+            emailService.deleteToken(verificationToken)
+            return VerificationResponse(
+                message = "Verification token has expired. Please request a new one.",
+                success = false,
+            )
+        }
+
+        val user = verificationToken.user!!
+        user.emailVerified = true
+        userRepository.save(user)
+
+        emailService.deleteToken(verificationToken)
+
+        return VerificationResponse(
+            message = "Email verified successfully. You can now log in.",
+            success = true,
+        )
+    }
+
+    @Transactional
+    fun resendVerificationEmail(email: String): VerificationResponse {
+        val user =
+            userRepository.findByEmail(email).orElse(null)
+                ?: return VerificationResponse(
+                    message =
+                        "If an account exists with this email, a verification link has been sent.",
+                    success = true,
+                )
+
+        if (user.emailVerified) {
+            return VerificationResponse(
+                message = "Email is already verified. You can log in.",
+                success = true,
+            )
+        }
+
+        val verificationToken = emailService.createVerificationToken(user)
+        emailService.sendVerificationEmail(user, verificationToken.token)
+
+        return VerificationResponse(
+            message =
+                "If an account exists with this email, a verification link has been sent.",
+            success = true,
+        )
+    }
+
     fun refreshToken(refreshToken: String): AuthResponse {
         if (jwtTokenProvider.isTokenExpired(refreshToken)) {
             throw IllegalArgumentException("Refresh token is expired")
@@ -80,9 +152,9 @@ class AuthService(
 
         val username = jwtTokenProvider.getUsernameFromToken(refreshToken)
         val user =
-            userRepository
-                .findByUsername(username)
-                .orElseThrow { IllegalArgumentException("User not found") }
+            userRepository.findByUsername(username).orElseThrow {
+                IllegalArgumentException("User not found")
+            }
 
         val newAccessToken = jwtTokenProvider.generateToken(user.username)
         val newRefreshToken = jwtTokenProvider.generateRefreshToken(user.username)
@@ -92,5 +164,22 @@ class AuthService(
             refreshToken = newRefreshToken,
             user = UserDto.fromEntity(user),
         )
+    }
+
+    private fun maskEmail(email: String): String {
+        val parts = email.split("@")
+        if (parts.size != 2) return email
+
+        val localPart = parts[0]
+        val domain = parts[1]
+
+        val maskedLocal =
+            if (localPart.length <= 2) {
+                "${localPart.first()}***"
+            } else {
+                "${localPart.first()}***${localPart.last()}"
+            }
+
+        return "$maskedLocal@$domain"
     }
 }
