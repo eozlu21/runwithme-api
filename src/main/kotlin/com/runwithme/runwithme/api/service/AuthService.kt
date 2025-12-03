@@ -98,6 +98,16 @@ class AuthService(
                     success = false,
                 )
 
+        val user = verificationToken.user!!
+
+        // Check if already verified
+        if (user.emailVerified) {
+            return VerificationResponse(
+                message = "Your email is already verified. You can log in.",
+                success = true,
+            )
+        }
+
         if (verificationToken.isExpired()) {
             emailService.deleteToken(verificationToken)
             return VerificationResponse(
@@ -106,7 +116,6 @@ class AuthService(
             )
         }
 
-        val user = verificationToken.user!!
         user.emailVerified = true
         userRepository.save(user)
 
