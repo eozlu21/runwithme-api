@@ -91,16 +91,19 @@ class AuthService(
 
     @Transactional
     fun verifyEmail(token: String): VerificationResponse {
-        val verificationToken =
-            emailService.findByToken(token)
-                ?: return VerificationResponse(
-                    message = "Invalid verification token.",
-                    success = false,
-                )
+        val verificationToken = emailService.findByToken(token)
+
+        // Token not found - could be invalid or already used
+        if (verificationToken == null) {
+            return VerificationResponse(
+                message = "Invalid or already used verification token.",
+                success = false,
+            )
+        }
 
         val user = verificationToken.user!!
 
-        // Check if already verified
+        // Check if already verified - don't delete token, just return success
         if (user.emailVerified) {
             return VerificationResponse(
                 message = "Your email is already verified. You can log in.",
@@ -119,7 +122,9 @@ class AuthService(
         user.emailVerified = true
         userRepository.save(user)
 
-        emailService.deleteToken(verificationToken)
+        // Keep token so user can click link again and see "already verified"
+        // Token will be cleaned up when they request a new one (createVerificationToken deletes
+        // old)
 
         return VerificationResponse(
             message = "Email verified successfully. You can now log in.",
