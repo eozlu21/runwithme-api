@@ -8,6 +8,7 @@ import com.runwithme.runwithme.api.dto.RegisterResponse
 import com.runwithme.runwithme.api.dto.ResendVerificationRequest
 import com.runwithme.runwithme.api.dto.VerificationResponse
 import com.runwithme.runwithme.api.service.AuthService
+import com.runwithme.runwithme.api.service.VerificationPageService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -15,6 +16,7 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController
 )
 class AuthController(
     private val authService: AuthService,
+    private val verificationPageService: VerificationPageService,
 ) {
     @PostMapping("/register")
     @Operation(
@@ -98,7 +101,7 @@ class AuthController(
         @RequestBody request: LoginRequest,
     ): ResponseEntity<AuthResponse> = ResponseEntity.ok(authService.login(request))
 
-    @GetMapping("/verify-email")
+    @GetMapping("/verify-email", produces = [MediaType.TEXT_HTML_VALUE])
     @Operation(
         summary = "Verify email",
         description = "Verifies user's email address using the token sent via email",
@@ -124,7 +127,11 @@ class AuthController(
     )
     fun verifyEmail(
         @Parameter(description = "Verification token from email") @RequestParam token: String,
-    ): ResponseEntity<VerificationResponse> = ResponseEntity.ok(authService.verifyEmail(token))
+    ): ResponseEntity<String> {
+        val result = authService.verifyEmail(token)
+        val html = verificationPageService.buildVerificationHtml(result.success, result.message)
+        return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(html)
+    }
 
     @PostMapping("/resend-verification")
     @Operation(
