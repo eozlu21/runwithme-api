@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.security.Principal
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/route-likes")
@@ -72,7 +73,7 @@ class RouteLikeController(
     )
     fun getLikesByUser(
         @Parameter(description = "User ID", example = "1")
-        @PathVariable userId: Long,
+        @PathVariable userId: UUID,
         @Parameter(description = "Page number (0-indexed)", example = "0")
         @RequestParam(defaultValue = "0")
         page: Int,

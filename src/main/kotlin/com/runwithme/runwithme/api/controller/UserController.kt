@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -68,7 +69,7 @@ class UserController(
     )
     fun getUserById(
         @Parameter(description = "User ID", example = "1")
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
     ): ResponseEntity<UserDto> {
         val user = userService.getUserById(id)
         return if (user != null) ResponseEntity.ok(user) else ResponseEntity.status(HttpStatus.NOT_FOUND).build()
@@ -143,7 +144,7 @@ class UserController(
     )
     fun updateUser(
         @Parameter(description = "User ID", example = "1")
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @RequestBody request: UpdateUserRequest,
     ): ResponseEntity<Any> =
         try {
@@ -170,7 +171,7 @@ class UserController(
     )
     fun deleteUser(
         @Parameter(description = "User ID", example = "1")
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
     ): ResponseEntity<Void> {
         val deleted = userService.deleteUser(id)
         return if (deleted) {

@@ -5,13 +5,14 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.LocalDate
+import java.util.UUID
 
 @Entity
 @Table(name = "user_profiles")
 open class UserProfile(
     @Id
     @Column(name = "user_id")
-    open var userId: Long? = null,
+    open var userId: UUID? = null,
     @Column(name = "first_name")
     open var firstName: String? = null,
     @Column(name = "last_name")

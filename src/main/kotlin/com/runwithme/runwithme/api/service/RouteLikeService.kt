@@ -11,6 +11,7 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 @Service
 class RouteLikeService(
@@ -35,7 +36,7 @@ class RouteLikeService(
     }
 
     fun getLikesByUser(
-        userId: Long,
+        userId: UUID,
         page: Int,
         size: Int,
     ): PageResponse<RouteLikeDto> {
@@ -55,13 +56,13 @@ class RouteLikeService(
 
     fun isRouteLikedByUser(
         routeId: Long,
-        userId: Long,
+        userId: UUID,
     ): Boolean = routeLikeRepository.existsByIdRouteIdAndIdUserId(routeId, userId)
 
     @Transactional
     fun likeRoute(
         routeId: Long,
-        authenticatedUserId: Long,
+        authenticatedUserId: UUID,
     ): RouteLikeDto {
         // Check if route exists
         if (!routeRepository.existsById(routeId)) {
@@ -82,7 +83,7 @@ class RouteLikeService(
     @Transactional
     fun unlikeRoute(
         routeId: Long,
-        authenticatedUserId: Long,
+        authenticatedUserId: UUID,
     ): Boolean {
         val likeId = RouteLikeId(routeId = routeId, userId = authenticatedUserId)
         val like = routeLikeRepository.findById(likeId).orElse(null) ?: return false
