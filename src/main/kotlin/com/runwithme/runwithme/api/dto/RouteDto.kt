@@ -1,7 +1,7 @@
 package com.runwithme.runwithme.api.dto
 
-import com.runwithme.runwithme.api.entity.Route
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.runwithme.runwithme.api.entity.Route
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.OffsetDateTime
 
