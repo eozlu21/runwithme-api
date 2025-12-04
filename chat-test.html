@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { padding: 10px 20px; cursor: pointer; }
+        #log { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; background: #f9f9f9; margin-top: 20px; }
+        .message { margin-bottom: 5px; padding: 5px; border-bottom: 1px solid #eee; }
+        .sent { color: blue; }
+        .received { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Chat Test Client</h2>
+    
+    <div class="form-group">
+        <label>Server URL:</label>
+        <!-- Update this with your actual server IP -->
+        <input type="text" id="url" value="http://35.158.35.102:8080/ws">
+    </div>
+
+    <div class="form-group">
+        <label>JWT Token (Bearer ...):</label>
+        <input type="text" id="token" placeholder="Paste your full JWT token here">
+    </div>
+
+    <div class="form-group">
+        <button onclick="connect()" id="connectBtn">Connect</button>
+        <button onclick="disconnect()" id="disconnectBtn" disabled>Disconnect</button>
+        <span id="status" style="margin-left: 10px; color: #666;">Not connected</span>
+    </div>
+
+    <hr>
+
+    <div class="form-group">
+        <label>Recipient ID:</label>
+        <input type="number" id="recipientId" value="2">
+    </div>
+
+    <div class="form-group">
+        <label>Message:</label>
+        <textarea id="message" rows="3">Hello!</textarea>
+    </div>
+
+    <div class="form-group">
+        <button onclick="sendMessage()" id="sendBtn" disabled>Send Message</button>
+    </div>
+
+    <div id="log"></div>
+</div>
+
+<script>
+    let stompClient = null;
+
+    function log(message, type = '') {
+        const logDiv = document.getElementById('log');
+        const entry = document.createElement('div');
+        entry.className = 'message ' + type;
+        entry.textContent = new Date().toLocaleTimeString() + ': ' + message;
+        logDiv.appendChild(entry);
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function connect() {
+        const url = document.getElementById('url').value;
+        const token = document.getElementById('token').value;
+
+        if (!token) {
+            log('Please enter a JWT token', 'error');
+            return;
+        }
+
+        const socket = new SockJS(url);
+        stompClient = Stomp.over(socket);
+
+        const headers = {
+            'Authorization': 'Bearer ' + token.replace('Bearer ', '')
+        };
+
+        log('Connecting...');
+
+        stompClient.connect(headers, function (frame) {
+            log('Connected: ' + frame);
+            
+            // Decode token for display
+            let username = "Unknown";
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                username = JSON.parse(jsonPayload).sub;
+            } catch (e) {}
+            
+            document.getElementById('status').innerHTML = `Connected as: <b>${username}</b>`;
+            
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('disconnectBtn').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+
+            // Subscribe to private messages
+            stompClient.subscribe('/user/queue/messages', function (message) {
+                try {
+                    const msg = JSON.parse(message.body);
+                    log(`<b>${msg.senderUsername}</b>: ${msg.content}`, 'received');
+                } catch (e) {
+                    log('Received: ' + message.body, 'received');
+                }
+            });
+
+        }, function (error) {
+            log('STOMP error: ' + error, 'error');
+            disconnect();
+        });
+    }
+
+    function disconnect() {
+        if (stompClient !== null) {
+            stompClient.disconnect();
+        }
+        log('Disconnected');
+        document.getElementById('status').innerHTML = 'Not connected';
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('disconnectBtn').disabled = true;
+        document.getElementById('sendBtn').disabled = true;
+        stompClient = null;
+    }
+
+    function sendMessage() {
+        const recipientId = document.getElementById('recipientId').value;
+        const content = document.getElementById('message').value;
+
+        if (!stompClient) {
+            log('Not connected', 'error');
+            return;
+        }
+
+        const payload = JSON.stringify({
+            'recipientId': parseInt(recipientId),
+            'content': content
+        });
+
+        stompClient.send("/app/chat", {}, payload);
+        log('Sent: ' + payload, 'sent');
+    }
+</script>
+</body>
+</html>
