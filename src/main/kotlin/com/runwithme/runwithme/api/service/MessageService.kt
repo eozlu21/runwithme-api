@@ -9,6 +9,7 @@ import com.runwithme.runwithme.api.repository.UserRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 @Service
 class MessageService(
@@ -43,7 +44,7 @@ class MessageService(
 
     fun getChatHistory(
         username: String,
-        otherUserId: Long,
+        otherUserId: UUID,
         page: Int,
         size: Int,
     ): PageResponse<MessageDto> {

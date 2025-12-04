@@ -3,15 +3,16 @@ package com.runwithme.runwithme.api.dto
 import com.runwithme.runwithme.api.entity.Message
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.OffsetDateTime
+import java.util.UUID
 
 @Schema(description = "Message data transfer object")
 data class MessageDto(
     @Schema(description = "Message ID", example = "1")
     val id: Long,
     @Schema(description = "Sender User ID", example = "1")
-    val senderId: Long,
+    val senderId: UUID,
     @Schema(description = "Recipient User ID", example = "2")
-    val recipientId: Long,
+    val recipientId: UUID,
     @Schema(description = "Sender Username", example = "john_doe")
     val senderUsername: String? = null,
     @Schema(description = "Recipient Username", example = "jane_doe")
@@ -45,7 +46,7 @@ data class MessageDto(
 @Schema(description = "Create message request")
 data class CreateMessageRequest(
     @Schema(description = "Recipient User ID", example = "2")
-    val recipientId: Long,
+    val recipientId: UUID,
     @Schema(description = "Message content", example = "Hello there!")
     val content: String,
 )

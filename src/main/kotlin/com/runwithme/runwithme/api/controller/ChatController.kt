@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.security.Principal
+import java.util.UUID
 
 @RestController
 @Tag(
@@ -63,7 +64,7 @@ class ChatController(
     @GetMapping("/api/v1/chat/history/{otherUserId}")
     @Operation(summary = "Get chat history with a user")
     fun getChatHistory(
-        @Parameter(description = "Other User ID") @PathVariable otherUserId: Long,
+        @Parameter(description = "Other User ID") @PathVariable otherUserId: UUID,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
         authentication: Authentication,
