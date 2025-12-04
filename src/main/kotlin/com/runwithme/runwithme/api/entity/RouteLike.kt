@@ -7,13 +7,14 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Table
 import java.io.Serializable
 import java.time.OffsetDateTime
+import java.util.UUID
 
 @Embeddable
 data class RouteLikeId(
     @Column(name = "route_id")
     var routeId: Long = 0,
     @Column(name = "user_id")
-    var userId: Long = 0,
+    var userId: UUID = UUID(0, 0),
 ) : Serializable
 
 @Entity

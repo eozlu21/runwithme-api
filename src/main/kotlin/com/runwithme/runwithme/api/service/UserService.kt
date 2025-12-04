@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
+import java.util.UUID
 
 @Service
 class UserService(
@@ -35,7 +36,7 @@ class UserService(
         return PageResponse.fromPage(userPage, UserDto::fromEntity)
     }
 
-    fun getUserById(id: Long): UserDto? = userRepository.findById(id).map(UserDto::fromEntity).orElse(null)
+    fun getUserById(id: UUID): UserDto? = userRepository.findById(id).map(UserDto::fromEntity).orElse(null)
 
     fun getUserByUsername(username: String): UserDto? =
         userRepository.findByUsername(username).map(UserDto::fromEntity).orElse(null)
@@ -43,7 +44,7 @@ class UserService(
     fun getUserByEmail(email: String): UserDto? =
         userRepository.findByEmail(email).map(UserDto::fromEntity).orElse(null)
 
-    fun getUserIdByUsername(username: String): Long? =
+    fun getUserIdByUsername(username: String): UUID? =
         userRepository
             .findByUsername(username)
             .map { it.userId }
@@ -71,7 +72,7 @@ class UserService(
 
     @Transactional
     fun updateUser(
-        id: Long,
+        id: UUID,
         request: UpdateUserRequest,
     ): UserDto? {
         val user = userRepository.findById(id).orElse(null) ?: return null
@@ -99,7 +100,7 @@ class UserService(
     }
 
     @Transactional
-    fun deleteUser(id: Long): Boolean {
+    fun deleteUser(id: UUID): Boolean {
         if (!userRepository.existsById(id)) {
             return false
         }

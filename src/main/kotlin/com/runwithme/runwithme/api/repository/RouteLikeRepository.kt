@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.util.UUID
 
 @Repository
 interface RouteLikeRepository : JpaRepository<RouteLike, RouteLikeId> {
@@ -16,7 +17,7 @@ interface RouteLikeRepository : JpaRepository<RouteLike, RouteLikeId> {
     ): Page<RouteLike>
 
     fun findByIdUserId(
-        userId: Long,
+        userId: UUID,
         pageable: Pageable,
     ): Page<RouteLike>
 
@@ -25,6 +26,6 @@ interface RouteLikeRepository : JpaRepository<RouteLike, RouteLikeId> {
 
     fun existsByIdRouteIdAndIdUserId(
         routeId: Long,
-        userId: Long,
+        userId: UUID,
     ): Boolean
 }

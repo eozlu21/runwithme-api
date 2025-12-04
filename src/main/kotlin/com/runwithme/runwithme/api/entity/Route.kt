@@ -9,6 +9,7 @@ import jakarta.persistence.Table
 import org.locationtech.jts.geom.LineString
 import org.locationtech.jts.geom.Point
 import java.time.OffsetDateTime
+import java.util.UUID
 
 @Entity
 @Table(name = "routes")
@@ -30,7 +31,7 @@ open class Route(
     open var endPoint: Point? = null,
     @Column(name = "path_geom", columnDefinition = "geography(LineString,4326)")
     open var pathGeom: LineString? = null,
-    @Column(name = "creator_id") open var creatorId: Long? = null,
+    @Column(name = "creator_id") open var creatorId: UUID? = null,
     @Column(name = "created_at", nullable = false)
     open var createdAt: OffsetDateTime = OffsetDateTime.now(),
     @Column(name = "updated_at", nullable = false)

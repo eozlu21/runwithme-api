@@ -11,6 +11,7 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 @Service
 class UserProfileService(
@@ -32,13 +33,13 @@ class UserProfileService(
         return PageResponse.fromPage(userProfilePage, UserProfileDto::fromEntity)
     }
 
-    fun getUserProfileById(id: Long): UserProfileDto? =
+    fun getUserProfileById(id: UUID): UserProfileDto? =
         userProfileRepository.findById(id).map(UserProfileDto::fromEntity).orElse(null)
 
     @Transactional
     fun createUserProfile(
         request: CreateUserProfileRequest,
-        authenticatedUserId: Long,
+        authenticatedUserId: UUID,
     ): UserProfileDto {
         if (request.userId != authenticatedUserId) {
             throw UnauthorizedActionException("You can only create your own profile")
@@ -69,9 +70,9 @@ class UserProfileService(
 
     @Transactional
     fun updateUserProfile(
-        id: Long,
+        id: UUID,
         request: UpdateUserProfileRequest,
-        authenticatedUserId: Long,
+        authenticatedUserId: UUID,
     ): UserProfileDto? {
         val userProfile = userProfileRepository.findById(id).orElse(null) ?: return null
         if (userProfile.userId != authenticatedUserId) {
@@ -96,7 +97,7 @@ class UserProfileService(
     }
 
     @Transactional
-    fun deleteUserProfile(id: Long): Boolean {
+    fun deleteUserProfile(id: UUID): Boolean {
         if (!userProfileRepository.existsById(id)) {
             return false
         }

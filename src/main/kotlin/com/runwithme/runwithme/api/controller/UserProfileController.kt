@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.security.Principal
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/user-profiles")
@@ -74,7 +75,7 @@ class UserProfileController(
     )
     fun getUserProfileById(
         @Parameter(description = "User ID", example = "1")
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
     ): ResponseEntity<UserProfileDto> {
         val userProfile = userProfileService.getUserProfileById(id)
         return if (userProfile != null) {
@@ -130,7 +131,7 @@ class UserProfileController(
     )
     fun updateUserProfile(
         @Parameter(description = "User ID", example = "1")
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @RequestBody request: UpdateUserProfileRequest,
         principal: Principal,
     ): ResponseEntity<UserProfileDto> {
@@ -159,7 +160,7 @@ class UserProfileController(
     )
     fun deleteUserProfile(
         @Parameter(description = "User ID", example = "1")
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
     ): ResponseEntity<Void> {
         val deleted = userProfileService.deleteUserProfile(id)
         return if (deleted) {

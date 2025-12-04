@@ -3,11 +3,12 @@ package com.runwithme.runwithme.api.dto
 import com.runwithme.runwithme.api.entity.UserProfile
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDate
+import java.util.UUID
 
 @Schema(description = "User profile data transfer object")
 data class UserProfileDto(
     @Schema(description = "User unique identifier", example = "1")
-    val userId: Long,
+    val userId: UUID,
     @Schema(description = "First name", example = "John")
     val firstName: String?,
     @Schema(description = "Last name", example = "Doe")
@@ -56,7 +57,7 @@ data class UserProfileDto(
 @Schema(description = "User profile creation request")
 data class CreateUserProfileRequest(
     @Schema(description = "User ID", example = "1", required = true)
-    val userId: Long,
+    val userId: UUID,
     @Schema(description = "First name", example = "John")
     val firstName: String?,
     @Schema(description = "Last name", example = "Doe")

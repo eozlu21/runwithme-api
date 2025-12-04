@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.runwithme.runwithme.api.entity.Route
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.OffsetDateTime
+import java.util.UUID
 
 @Schema(description = "Route data transfer object")
 data class RouteDto(
@@ -27,7 +28,7 @@ data class RouteDto(
     @Schema(description = "End point longitude", example = "-73.9680") val endPointLon: Double?,
     @Schema(description = "List of route points") val points: List<RoutePointDto>? = null,
     @Schema(description = "ID of the user who created the route", example = "1")
-    val creatorId: Long?,
+    val creatorId: UUID?,
     @Schema(description = "Creation timestamp") val createdAt: OffsetDateTime,
     @Schema(description = "Last update timestamp") val updatedAt: OffsetDateTime,
 ) {
