@@ -19,5 +19,5 @@ interface MessageRepository : JpaRepository<Message, Long> {
         pageable: Pageable,
     ): Page<Message>
 
-    fun countByRecipientIdAndIsReadFalse(recipientId: Long): Long
+    fun countByRecipientIdAndIsReadFalse(recipientId: UUID): Long
 }
