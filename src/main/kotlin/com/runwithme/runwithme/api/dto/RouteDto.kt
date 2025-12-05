@@ -18,7 +18,7 @@ data class RouteDto(
     val estimatedDurationS: Int?,
     @Schema(description = "Difficulty level", example = "intermediate") val difficulty: String?,
     @Schema(description = "Is route publicly visible", example = "true")
-    @JsonProperty("isPublic")
+    @get:JsonProperty("isPublic")
     val isPublic: Boolean,
     @Schema(description = "Start point latitude", example = "40.7829")
     val startPointLat: Double?,
@@ -73,7 +73,8 @@ data class CreateRouteRequest(
     @Schema(description = "Difficulty level", example = "intermediate")
     val difficulty: String? = null,
     @Schema(description = "Is route publicly visible", example = "true")
-    @JsonProperty("isPublic")
+    @field:JsonProperty("isPublic")
+    @param:JsonProperty("isPublic")
     val isPublic: Boolean = true,
     @Schema(description = "Start point latitude", example = "40.7829")
     val startPointLat: Double? = null,
@@ -98,7 +99,8 @@ data class UpdateRouteRequest(
     @Schema(description = "Difficulty level", example = "intermediate")
     val difficulty: String? = null,
     @Schema(description = "Is route publicly visible", example = "true")
-    @JsonProperty("isPublic")
+    @field:JsonProperty("isPublic")
+    @param:JsonProperty("isPublic")
     val isPublic: Boolean? = null,
     @Schema(description = "Start point latitude", example = "40.7829")
     val startPointLat: Double? = null,
