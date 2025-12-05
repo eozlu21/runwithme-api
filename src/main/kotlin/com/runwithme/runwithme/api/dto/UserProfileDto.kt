@@ -21,8 +21,11 @@ data class UserProfileDto(
     val expertLevel: String?,
     @Schema(description = "Profile picture URL", example = "https://example.com/pic.jpg")
     val profilePic: String?,
-    @Schema(description = "Profile visibility", example = "true")
-    val profileVisibility: Boolean,
+    @Schema(
+        description = "Profile visibility setting: PUBLIC, FRIENDS_ONLY, FRIENDS_OF_FRIENDS, or PRIVATE",
+        example = "PUBLIC",
+    )
+    val profileVisibility: String,
     @Schema(description = "Region ID", example = "1")
     val regionId: Int?,
     @Schema(description = "Subregion ID", example = "10")
@@ -70,8 +73,11 @@ data class CreateUserProfileRequest(
     val expertLevel: String?,
     @Schema(description = "Profile picture URL", example = "https://example.com/pic.jpg")
     val profilePic: String?,
-    @Schema(description = "Profile visibility", example = "true")
-    val profileVisibility: Boolean = true,
+    @Schema(
+        description = "Profile visibility setting: PUBLIC, FRIENDS_ONLY, FRIENDS_OF_FRIENDS, or PRIVATE",
+        example = "PUBLIC",
+    )
+    val profileVisibility: String = "PUBLIC",
     @Schema(description = "Region ID", example = "1")
     val regionId: Int?,
     @Schema(description = "Subregion ID", example = "10")
@@ -98,8 +104,11 @@ data class UpdateUserProfileRequest(
     val expertLevel: String?,
     @Schema(description = "Profile picture URL", example = "https://example.com/pic.jpg")
     val profilePic: String?,
-    @Schema(description = "Profile visibility", example = "true")
-    val profileVisibility: Boolean?,
+    @Schema(
+        description = "Profile visibility setting: PUBLIC, FRIENDS_ONLY, FRIENDS_OF_FRIENDS, or PRIVATE",
+        example = "PUBLIC",
+    )
+    val profileVisibility: String?,
     @Schema(description = "Region ID", example = "1")
     val regionId: Int?,
     @Schema(description = "Subregion ID", example = "10")

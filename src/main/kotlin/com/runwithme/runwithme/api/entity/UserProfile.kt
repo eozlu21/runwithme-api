@@ -25,8 +25,16 @@ open class UserProfile(
     open var expertLevel: String? = null,
     @Column(name = "profile_pic")
     open var profilePic: String? = null,
+    /**
+     * Profile visibility setting. Stored as String to support:
+     * - PUBLIC: visible to everyone
+     * - FRIENDS_ONLY: visible only to friends
+     * - FRIENDS_OF_FRIENDS: visible to friends and friends of friends
+     * - PRIVATE: visible only to the owner
+     * For backwards compatibility, "true" is treated as PUBLIC and "false" as PRIVATE
+     */
     @Column(name = "profile_visibility", nullable = false)
-    open var profileVisibility: Boolean = true,
+    open var profileVisibility: String = ProfileVisibility.PUBLIC.name,
     @Column(name = "region_id")
     open var regionId: Int? = null,
     @Column(name = "subregion_id")
