@@ -139,6 +139,7 @@ jobs:
               -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
               -e MAIL_USERNAME="${{ secrets.MAIL_USERNAME }}" \
               -e MAIL_PASSWORD="${{ secrets.MAIL_PASSWORD }}" \
+              -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
               -e APP_BASE_URL="http://${{ secrets.EC2_HOST }}:8080" \
               -e JAVA_OPTS="-Xms256m -Xmx512m" \
               ${{ env.CONTAINER_NAME }}:latest

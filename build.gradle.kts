@@ -67,6 +67,10 @@ dependencies {
     implementation("org.locationtech.jts:jts-core:1.19.0")
     implementation("org.hibernate:hibernate-spatial:6.3.1.Final")
 
+    // AWS SDK for S3 (Lightsail bucket access)
+    implementation(platform("software.amazon.awssdk:bom:2.21.0"))
+    implementation("software.amazon.awssdk:s3")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
 }

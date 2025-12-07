@@ -70,3 +70,14 @@ logging:
   level:
     com.runwithme.runwithme.api.config.RequestLoggingInterceptor: INFO
     org.springframework.web: INFO
+
+# AWS Lightsail Bucket Configuration
+aws:
+  lightsail:
+    bucket:
+      name: ${AWS_LIGHTSAIL_BUCKET_NAME:bucket-05sxb9}
+      region: ${AWS_LIGHTSAIL_BUCKET_REGION:eu-central-1}
+      access-key: ${AWS_ACCESS_KEY_ID:AKIAVSIAYC6V4GQDS5TS}
+      secret-key: ${AWS_SECRET_ACCESS_KEY}
+      endpoint: ${AWS_LIGHTSAIL_BUCKET_ENDPOINT:}
+
