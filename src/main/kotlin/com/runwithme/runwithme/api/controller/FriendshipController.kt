@@ -46,12 +46,22 @@ class FriendshipController(
         description = "Send a friend request to another user",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "201", description = "Friend request sent successfully"),
-            ApiResponse(responseCode = "400", description = "Invalid request or already friends"),
-            ApiResponse(responseCode = "404", description = "User not found"),
-            ApiResponse(responseCode = "409", description = "Friend request already exists"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "201",
+                    description = "Friend request sent successfully",
+                ),
+                ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid request or already friends",
+                ),
+                ApiResponse(responseCode = "404", description = "User not found"),
+                ApiResponse(
+                    responseCode = "409",
+                    description = "Friend request already exists",
+                ),
+            ],
     )
     fun sendFriendRequest(
         @RequestBody request: SendFriendRequestDto,
@@ -73,15 +83,19 @@ class FriendshipController(
         description = "Get all pending friend requests received by the authenticated user",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "Successfully retrieved friend requests"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Successfully retrieved friend requests",
+                ),
+            ],
     )
     fun getReceivedRequests(
         @Parameter(description = "Page number (0-indexed)")
-        @RequestParam(defaultValue = "0") page: Int,
-        @Parameter(description = "Page size")
-        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(defaultValue = "0")
+        page: Int,
+        @Parameter(description = "Page size") @RequestParam(defaultValue = "10") size: Int,
         principal: Principal,
     ): ResponseEntity<PageResponse<FriendRequestWithUserDto>> {
         val userId = getUserIdFromPrincipal(principal)
@@ -95,15 +109,19 @@ class FriendshipController(
         description = "Get all pending friend requests sent by the authenticated user",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "Successfully retrieved friend requests"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Successfully retrieved friend requests",
+                ),
+            ],
     )
     fun getSentRequests(
         @Parameter(description = "Page number (0-indexed)")
-        @RequestParam(defaultValue = "0") page: Int,
-        @Parameter(description = "Page size")
-        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(defaultValue = "0")
+        page: Int,
+        @Parameter(description = "Page size") @RequestParam(defaultValue = "10") size: Int,
         principal: Principal,
     ): ResponseEntity<PageResponse<FriendRequestWithUserDto>> {
         val userId = getUserIdFromPrincipal(principal)
@@ -117,12 +135,25 @@ class FriendshipController(
         description = "Accept or reject a pending friend request",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "Response recorded successfully"),
-            ApiResponse(responseCode = "400", description = "Request already processed"),
-            ApiResponse(responseCode = "403", description = "Not authorized to respond to this request"),
-            ApiResponse(responseCode = "404", description = "Friend request not found"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Response recorded successfully",
+                ),
+                ApiResponse(
+                    responseCode = "400",
+                    description = "Request already processed",
+                ),
+                ApiResponse(
+                    responseCode = "403",
+                    description = "Not authorized to respond to this request",
+                ),
+                ApiResponse(
+                    responseCode = "404",
+                    description = "Friend request not found",
+                ),
+            ],
     )
     fun respondToRequest(
         @PathVariable requestId: UUID,
@@ -130,7 +161,12 @@ class FriendshipController(
         principal: Principal,
     ): ResponseEntity<FriendRequestDto> {
         val userId = getUserIdFromPrincipal(principal)
-        val result = friendshipService.respondToFriendRequest(requestId, userId, response.accept)
+        val result =
+            friendshipService.respondToFriendRequest(
+                requestId,
+                userId,
+                response.status,
+            )
         return ResponseEntity.ok(result)
     }
 
@@ -140,11 +176,21 @@ class FriendshipController(
         description = "Cancel a pending friend request that you sent",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "Friend request cancelled"),
-            ApiResponse(responseCode = "403", description = "Not authorized to cancel this request"),
-            ApiResponse(responseCode = "404", description = "Friend request not found"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Friend request cancelled",
+                ),
+                ApiResponse(
+                    responseCode = "403",
+                    description = "Not authorized to cancel this request",
+                ),
+                ApiResponse(
+                    responseCode = "404",
+                    description = "Friend request not found",
+                ),
+            ],
     )
     fun cancelRequest(
         @PathVariable requestId: UUID,
@@ -163,15 +209,19 @@ class FriendshipController(
         description = "Get all friends of the authenticated user",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "Successfully retrieved friends list"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Successfully retrieved friends list",
+                ),
+            ],
     )
     fun getFriends(
         @Parameter(description = "Page number (0-indexed)")
-        @RequestParam(defaultValue = "0") page: Int,
-        @Parameter(description = "Page size")
-        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(defaultValue = "0")
+        page: Int,
+        @Parameter(description = "Page size") @RequestParam(defaultValue = "10") size: Int,
         principal: Principal,
     ): ResponseEntity<PageResponse<FriendDto>> {
         val userId = getUserIdFromPrincipal(principal)
@@ -185,18 +235,25 @@ class FriendshipController(
         description = "Get friends of a specific user (subject to privacy settings)",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "Successfully retrieved friends list"),
-            ApiResponse(responseCode = "403", description = "Not authorized to view this user's friends"),
-            ApiResponse(responseCode = "404", description = "User not found"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Successfully retrieved friends list",
+                ),
+                ApiResponse(
+                    responseCode = "403",
+                    description = "Not authorized to view this user's friends",
+                ),
+                ApiResponse(responseCode = "404", description = "User not found"),
+            ],
     )
     fun getUserFriends(
         @PathVariable userId: UUID,
         @Parameter(description = "Page number (0-indexed)")
-        @RequestParam(defaultValue = "0") page: Int,
-        @Parameter(description = "Page size")
-        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(defaultValue = "0")
+        page: Int,
+        @Parameter(description = "Page size") @RequestParam(defaultValue = "10") size: Int,
         principal: Principal?,
     ): ResponseEntity<PageResponse<FriendDto>> {
         val viewerId = principal?.let { getUserIdFromPrincipal(it) }
@@ -215,10 +272,14 @@ class FriendshipController(
         description = "Remove a friend from your friends list",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "204", description = "Friend removed successfully"),
-            ApiResponse(responseCode = "404", description = "Friendship not found"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "204",
+                    description = "Friend removed successfully",
+                ),
+                ApiResponse(responseCode = "404", description = "Friendship not found"),
+            ],
     )
     fun removeFriend(
         @PathVariable friendId: UUID,
@@ -235,13 +296,23 @@ class FriendshipController(
         description = "Get the friendship status between you and another user",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Status retrieved",
-                content = [Content(schema = Schema(implementation = String::class))],
-            ),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Status retrieved",
+                    content =
+                        [
+                            Content(
+                                schema =
+                                    Schema(
+                                        implementation =
+                                            String::class,
+                                    ),
+                            ),
+                        ],
+                ),
+            ],
     )
     fun getFriendshipStatus(
         @PathVariable otherUserId: UUID,
@@ -258,9 +329,13 @@ class FriendshipController(
         description = "Get statistics about your friends and friend requests",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "Statistics retrieved successfully"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Statistics retrieved successfully",
+                ),
+            ],
     )
     fun getFriendStats(principal: Principal): ResponseEntity<FriendStatsDto> {
         val userId = getUserIdFromPrincipal(principal)
@@ -274,9 +349,13 @@ class FriendshipController(
         description = "Get friends in common with another user",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "Mutual friends retrieved successfully"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Mutual friends retrieved successfully",
+                ),
+            ],
     )
     fun getMutualFriends(
         @PathVariable otherUserId: UUID,
@@ -293,15 +372,19 @@ class FriendshipController(
         description = "Get suggested friends (friends of friends)",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "Suggestions retrieved successfully"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Suggestions retrieved successfully",
+                ),
+            ],
     )
     fun getFriendSuggestions(
         @Parameter(description = "Page number (0-indexed)")
-        @RequestParam(defaultValue = "0") page: Int,
-        @Parameter(description = "Page size")
-        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(defaultValue = "0")
+        page: Int,
+        @Parameter(description = "Page size") @RequestParam(defaultValue = "10") size: Int,
         principal: Principal,
     ): ResponseEntity<List<UserDto>> {
         val userId = getUserIdFromPrincipal(principal)

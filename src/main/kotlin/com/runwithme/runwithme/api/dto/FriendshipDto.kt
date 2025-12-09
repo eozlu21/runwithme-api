@@ -11,20 +11,13 @@ import java.util.UUID
 
 @Schema(description = "Friend request data transfer object")
 data class FriendRequestDto(
-    @Schema(description = "Friend request unique identifier")
-    val requestId: UUID,
-    @Schema(description = "Sender user ID")
-    val senderId: UUID,
-    @Schema(description = "Receiver user ID")
-    val receiverId: UUID,
-    @Schema(description = "Status of the friend request")
-    val status: FriendRequestStatus,
-    @Schema(description = "When the request was created")
-    val createdAt: OffsetDateTime,
-    @Schema(description = "When the request was last updated")
-    val updatedAt: OffsetDateTime,
-    @Schema(description = "Optional message with the request")
-    val message: String?,
+    @Schema(description = "Friend request unique identifier") val requestId: UUID,
+    @Schema(description = "Sender user ID") val senderId: UUID,
+    @Schema(description = "Receiver user ID") val receiverId: UUID,
+    @Schema(description = "Status of the friend request") val status: FriendRequestStatus,
+    @Schema(description = "When the request was created") val createdAt: OffsetDateTime,
+    @Schema(description = "When the request was last updated") val updatedAt: OffsetDateTime,
+    @Schema(description = "Optional message with the request") val message: String?,
 ) {
     companion object {
         fun fromEntity(entity: FriendRequest): FriendRequestDto =
@@ -42,18 +35,12 @@ data class FriendRequestDto(
 
 @Schema(description = "Friend request with user details")
 data class FriendRequestWithUserDto(
-    @Schema(description = "Friend request unique identifier")
-    val requestId: UUID,
-    @Schema(description = "Sender user details")
-    val sender: UserDto,
-    @Schema(description = "Receiver user details")
-    val receiver: UserDto,
-    @Schema(description = "Status of the friend request")
-    val status: FriendRequestStatus,
-    @Schema(description = "When the request was created")
-    val createdAt: OffsetDateTime,
-    @Schema(description = "Optional message with the request")
-    val message: String?,
+    @Schema(description = "Friend request unique identifier") val requestId: UUID,
+    @Schema(description = "Sender user details") val sender: UserDto,
+    @Schema(description = "Receiver user details") val receiver: UserDto,
+    @Schema(description = "Status of the friend request") val status: FriendRequestStatus,
+    @Schema(description = "When the request was created") val createdAt: OffsetDateTime,
+    @Schema(description = "Optional message with the request") val message: String?,
 )
 
 @Schema(description = "Request to send a friend request")
@@ -66,22 +53,24 @@ data class SendFriendRequestDto(
 
 @Schema(description = "Request to respond to a friend request")
 data class RespondToFriendRequestDto(
-    @Schema(description = "Whether to accept the friend request", required = true)
-    val accept: Boolean,
-)
+    @Schema(description = "Status to set (ACCEPTED or REJECTED)", required = true)
+    val status: FriendRequestStatus,
+) {
+    init {
+        require(status == FriendRequestStatus.ACCEPTED || status == FriendRequestStatus.REJECTED) {
+            "Status must be either ACCEPTED or REJECTED"
+        }
+    }
+}
 
 // ============ Friendship DTOs ============
 
 @Schema(description = "Friendship data transfer object")
 data class FriendshipDto(
-    @Schema(description = "Friendship unique identifier")
-    val friendshipId: UUID,
-    @Schema(description = "First user ID")
-    val user1Id: UUID,
-    @Schema(description = "Second user ID")
-    val user2Id: UUID,
-    @Schema(description = "When the friendship was created")
-    val createdAt: OffsetDateTime,
+    @Schema(description = "Friendship unique identifier") val friendshipId: UUID,
+    @Schema(description = "First user ID") val user1Id: UUID,
+    @Schema(description = "Second user ID") val user2Id: UUID,
+    @Schema(description = "When the friendship was created") val createdAt: OffsetDateTime,
 ) {
     companion object {
         fun fromEntity(entity: Friendship): FriendshipDto =
@@ -96,18 +85,15 @@ data class FriendshipDto(
 
 @Schema(description = "Friend details DTO")
 data class FriendDto(
-    @Schema(description = "User details of the friend")
-    val user: UserDto,
-    @Schema(description = "When the friendship was created")
-    val friendsSince: OffsetDateTime,
+    @Schema(description = "User details of the friend") val user: UserDto,
+    @Schema(description = "When the friendship was created") val friendsSince: OffsetDateTime,
 )
 
 // ============ Friend Count DTO ============
 
 @Schema(description = "Friend statistics")
 data class FriendStatsDto(
-    @Schema(description = "Total number of friends")
-    val friendCount: Int,
+    @Schema(description = "Total number of friends") val friendCount: Int,
     @Schema(description = "Number of pending friend requests received")
     val pendingRequestsReceived: Int,
     @Schema(description = "Number of pending friend requests sent")

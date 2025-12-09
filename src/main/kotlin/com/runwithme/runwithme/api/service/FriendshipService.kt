@@ -83,7 +83,7 @@ class FriendshipService(
     fun respondToFriendRequest(
         requestId: UUID,
         responderId: UUID,
-        accept: Boolean,
+        accept: FriendRequestStatus,
     ): FriendRequestDto {
         val request =
             friendRequestRepository
@@ -100,13 +100,13 @@ class FriendshipService(
             throw IllegalStateException("This friend request has already been ${request.status.name.lowercase()}")
         }
 
-        request.status = if (accept) FriendRequestStatus.ACCEPTED else FriendRequestStatus.REJECTED
+        request.status = accept
         request.updatedAt = OffsetDateTime.now()
 
         val updatedRequest = friendRequestRepository.save(request)
 
         // If accepted, create the friendship
-        if (accept) {
+        if (accept == FriendRequestStatus.ACCEPTED) {
             val friendship = Friendship.create(request.senderId, request.receiverId)
             friendshipRepository.save(friendship)
         }
