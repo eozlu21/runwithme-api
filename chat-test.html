@@ -1,364 +1,394 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Test</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, textarea { width: 100%; padding: 8px; box-sizing: border-box; }
-        button { padding: 10px 20px; cursor: pointer; margin-right: 5px; }
-        #log { border: 1px solid #ccc; height: 350px; overflow-y: scroll; padding: 10px; background: #f9f9f9; margin-top: 20px; }
-        .message { margin-bottom: 5px; padding: 5px; border-bottom: 1px solid #eee; }
-        .sent { color: blue; }
-        .received { color: green; }
-        .error { color: red; }
-        .info { color: #666; font-style: italic; }
-        .user-info { background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
-        .debug-box { background: #fff3e0; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
-        .login-box { background: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 15px; }
-        .login-box input { margin-bottom: 10px; }
-        .hidden { display: none; }
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        input, button { padding: 8px 12px; margin: 5px; }
+        button { cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        button:hover { background: #0056b3; }
+        #messages, #history { height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background: #f9f9f9; }
+        .message { padding: 8px; margin: 5px 0; border-radius: 4px; }
+        .sent { background: #d4edda; text-align: right; }
+        .received { background: #e2e3e5; }
+        .public { background: #fff3cd; }
+        .status { padding: 5px 10px; border-radius: 4px; display: inline-block; }
+        .connected { background: #28a745; color: white; }
+        .disconnected { background: #dc3545; color: white; }
+        #historySection { margin-top: 20px; }
+        .history-item { padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .history-item.from-me { border-left-color: #28a745; }
+        .history-item .meta { font-size: 0.8em; color: #666; }
     </style>
 </head>
 <body>
-<div class="container">
-    <h2>Chat Test Client (User 1)</h2>
+    <h1>Chat Test Client</h1>
     
-    <div class="form-group">
-        <label>Server URL:</label>
-        <input type="text" id="serverUrl" value="http://35.158.35.102:8080">
+    <div class="section">
+        <h3>1. Login</h3>
+        <input type="text" id="username" placeholder="Username" value="">
+        <input type="password" id="password" placeholder="Password" value="">
+        <button onclick="login()">Login</button>
+        <span id="loginStatus"></span>
     </div>
 
-    <!-- Login Section -->
-    <div class="login-box" id="loginBox">
-        <h3>Login</h3>
-        <div class="form-group">
-            <label>Username:</label>
-            <input type="text" id="username" placeholder="Enter your username">
-        </div>
-        <div class="form-group">
-            <label>Password:</label>
-            <input type="password" id="password" placeholder="Enter your password">
-        </div>
-        <button onclick="login()">Login & Connect</button>
-        <span id="loginStatus" style="margin-left: 10px;"></span>
+    <div class="section">
+        <h3>2. WebSocket Connection</h3>
+        <button onclick="connect()">Connect WebSocket</button>
+        <button onclick="disconnect()">Disconnect</button>
+        <span id="wsStatus" class="status disconnected">Disconnected</span>
     </div>
 
-    <div class="user-info" id="userInfo" style="display: none;">
-        <b>Logged in as:</b> <span id="displayUsername">-</span><br>
-        <b>Your User ID:</b> <span id="userId">-</span><br>
-        <b>Status:</b> <span id="status" style="color: green;">-</span>
-        <button onclick="disconnect()" style="float: right;">Disconnect</button>
-    </div>
-    
-    <div class="debug-box" id="debugBox" style="display: none;">
-        <b>Debug Info:</b><br>
-        <span id="connectedUsers">Connected users: checking...</span>
-        <button onclick="checkConnectedUsers()" style="margin-left: 10px;">Refresh</button>
+    <div class="section">
+        <h3>3. Load Chat History</h3>
+        <input type="text" id="historyUserId" placeholder="Other User UUID (optional)">
+        <button onclick="loadHistory()">Load All History</button>
+        <button onclick="loadHistoryWithUser()">Load With Specific User</button>
+        <div id="history"></div>
     </div>
 
-    <hr>
-
-    <div id="chatSection" class="hidden">
-        <div class="form-group">
-            <label>Recipient Username:</label>
-            <input type="text" id="recipientUsername" value="" placeholder="e.g. tuna">
-            <button onclick="lookupUser()" style="margin-top: 5px;">Lookup User ID</button>
-        </div>
-
-        <div class="form-group">
-            <label>Recipient ID (UUID - auto-filled on lookup):</label>
-            <input type="text" id="recipientId" value="" placeholder="Will be filled when you lookup username">
-            <button onclick="loadHistory()" id="historyBtn" style="margin-top: 5px;">Load History</button>
-        </div>
-
-        <div class="form-group">
-            <label>Message:</label>
-            <textarea id="message" rows="2">Hello!</textarea>
-        </div>
-
-        <div class="form-group">
-            <button onclick="sendPrivate()" id="sendBtn">Send Private</button>
-            <button onclick="sendPublic()" id="sendPublicBtn">Send Public (broadcast)</button>
-        </div>
+    <div class="section">
+        <h3>4. Send Message</h3>
+        <input type="text" id="recipientId" placeholder="Recipient User UUID">
+        <input type="text" id="messageContent" placeholder="Message" style="width: 300px;">
+        <button onclick="sendPrivate()">Send Private</button>
+        <button onclick="sendPublic()">Send Public</button>
     </div>
 
-    <div id="log"></div>
-    <button onclick="clearLog()">Clear Log</button>
-</div>
+    <div class="section">
+        <h3>5. Live Messages</h3>
+        <button onclick="clearMessages()">Clear</button>
+        <div id="messages"></div>
+    </div>
 
-<script>
-    let stompClient = null;
-    let currentUsername = null;
-    let currentUserId = null;
-    let currentToken = null;
+    <div class="section">
+        <h3>6. Debug</h3>
+        <button onclick="checkConnectedUsers()">Check Connected Users</button>
+        <button onclick="pollNewMessages()">Poll New Messages</button>
+        <pre id="debug"></pre>
+    </div>
 
-    function log(message, type = '') {
-        const logDiv = document.getElementById('log');
-        const entry = document.createElement('div');
-        entry.className = 'message ' + type;
-        entry.innerHTML = new Date().toLocaleTimeString() + ': ' + message;
-        logDiv.appendChild(entry);
-        logDiv.scrollTop = logDiv.scrollHeight;
-    }
-    
-    function clearLog() {
-        document.getElementById('log').innerHTML = '';
-    }
+    <script>
+        const SERVER = 'http://35.158.35.102:8080';
+        let token = null;
+        let stompClient = null;
+        let currentUserId = null;
+        let lastMessageId = 0;
 
-    async function login() {
-        const serverUrl = document.getElementById('serverUrl').value;
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        
-        if (!username || !password) {
-            log('Please enter username and password', 'error');
-            return;
+        function log(msg) {
+            console.log(msg);
+            document.getElementById('debug').textContent = msg;
         }
-        
-        document.getElementById('loginStatus').textContent = 'Logging in...';
-        log('Logging in as ' + username + '...');
-        
-        try {
-            // Step 1: Login to get JWT token
-            const loginResponse = await fetch(`${serverUrl}/api/v1/auth/login`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
-            });
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
             
-            if (!loginResponse.ok) {
-                throw new Error('Login failed: ' + loginResponse.status);
-            }
-            
-            const loginData = await loginResponse.json();
-            currentToken = loginData.token;
-            currentUsername = username;
-            log('✓ Login successful, got JWT token', 'received');
-            
-            // Step 2: Connect to WebSocket first (most important)
-            connectWebSocket(serverUrl);
-            
-            // Step 3: Try to get user details (non-blocking)
             try {
-                const userResponse = await fetch(`${serverUrl}/api/v1/users/username/${username}`, {
-                    headers: {
-                        'Authorization': 'Bearer ' + currentToken
+                const response = await fetch(`${SERVER}/api/v1/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Login failed: ${response.status} - ${errorText}`);
+                }
+                
+                const data = await response.json();
+                token = data.accessToken;
+                currentUserId = data.user?.userId;
+                
+                document.getElementById('loginStatus').innerHTML = 
+                    `<span style="color:green">✓ Logged in! UserID: ${currentUserId}</span>`;
+                log(`Login successful. UserID: ${currentUserId}, Token: ${token?.substring(0,30)}...`);
+            } catch (error) {
+                document.getElementById('loginStatus').innerHTML = 
+                    `<span style="color:red">✗ ${error.message}</span>`;
+                log(`Login error: ${error.message}`);
+            }
+        }
+
+        async function getUserInfo() {
+            try {
+                const response = await fetch(`${SERVER}/api/v1/users/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const user = await response.json();
+                    currentUserId = user.id;
+                    document.getElementById('loginStatus').innerHTML += ` (User ID: ${currentUserId})`;
+                }
+            } catch (e) {
+                console.log('Could not get user info:', e);
+            }
+        }
+
+        function connect() {
+            if (!token) {
+                alert('Please login first!');
+                return;
+            }
+
+            const socket = new SockJS(`${SERVER}/ws`);
+            stompClient = Stomp.over(socket);
+            
+            stompClient.connect(
+                { 'Authorization': `Bearer ${token}` },
+                function(frame) {
+                    log('Connected: ' + frame);
+                    document.getElementById('wsStatus').textContent = 'Connected';
+                    document.getElementById('wsStatus').className = 'status connected';
+                    
+                    // Subscribe to private messages
+                    stompClient.subscribe('/user/queue/messages', function(message) {
+                        const msg = JSON.parse(message.body);
+                        addMessage('received', `From ${msg.senderId}: ${msg.content}`);
+                    });
+                    
+                    // Subscribe to public messages
+                    stompClient.subscribe('/topic/public', function(message) {
+                        const msg = JSON.parse(message.body);
+                        addMessage('public', `[PUBLIC] From ${msg.senderId}: ${msg.content}`);
+                    });
+                    
+                    log('Subscribed to /user/queue/messages and /topic/public');
+                },
+                function(error) {
+                    log('Connection error: ' + error);
+                    document.getElementById('wsStatus').textContent = 'Error';
+                    document.getElementById('wsStatus').className = 'status disconnected';
+                }
+            );
+        }
+
+        function disconnect() {
+            if (stompClient) {
+                stompClient.disconnect();
+                document.getElementById('wsStatus').textContent = 'Disconnected';
+                document.getElementById('wsStatus').className = 'status disconnected';
+                log('Disconnected');
+            }
+        }
+
+        async function loadHistory() {
+            if (!token) {
+                alert('Please login first!');
+                return;
+            }
+
+            try {
+                log('Loading all chat history...');
+                const response = await fetch(`${SERVER}/api/v1/chat/history`, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
                 
-                if (userResponse.ok) {
-                    const userData = await userResponse.json();
-                    currentUserId = userData.id;
-                    document.getElementById('userId').textContent = currentUserId;
-                    log('✓ Your User ID: ' + currentUserId, 'received');
-                } else {
-                    document.getElementById('userId').textContent = '(fetch failed - use Lookup)';
+                log(`History response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to load history: ${response.status} - ${errorText}`);
                 }
-            } catch (e) {
-                document.getElementById('userId').textContent = '(CORS error - use Lookup)';
-                log('Note: Could not fetch your user ID due to CORS. Use Lookup button.', 'info');
+                
+                const data = await response.json();
+                const messages = data.content || [];
+                log(`Loaded ${messages.length} messages (page ${data.pageNumber + 1} of ${data.totalPages}, total: ${data.totalElements})`);
+                displayHistory(messages);
+                
+                // Track last message ID for polling
+                if (messages.length > 0) {
+                    lastMessageId = Math.max(...messages.map(m => m.id));
+                }
+            } catch (error) {
+                log(`Error loading history: ${error.message}`);
+                document.getElementById('history').innerHTML = `<p style="color:red">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function loadHistoryWithUser() {
+            if (!token) {
+                alert('Please login first!');
+                return;
+            }
+
+            const otherUserId = document.getElementById('historyUserId').value;
+            if (!otherUserId) {
+                alert('Please enter the other user ID!');
+                return;
+            }
+
+            try {
+                log(`Loading chat history with user ${otherUserId}...`);
+                const response = await fetch(`${SERVER}/api/v1/chat/history/${otherUserId}`, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                log(`History response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to load history: ${response.status} - ${errorText}`);
+                }
+                
+                const data = await response.json();
+                const messages = data.content || [];
+                log(`Loaded ${messages.length} messages with user ${otherUserId}`);
+                displayHistory(messages);
+            } catch (error) {
+                log(`Error loading history: ${error.message}`);
+                document.getElementById('history').innerHTML = `<p style="color:red">Error: ${error.message}</p>`;
+            }
+        }
+
+        function displayHistory(messages) {
+            const historyDiv = document.getElementById('history');
+            
+            if (!messages || messages.length === 0) {
+                historyDiv.innerHTML = '<p>No messages found</p>';
+                return;
             }
             
-        } catch (err) {
-            log('Login error: ' + err.message, 'error');
-            document.getElementById('loginStatus').textContent = 'Login failed';
+            historyDiv.innerHTML = messages.map(msg => {
+                const isFromMe = msg.senderId === currentUserId;
+                const time = msg.createdAt ? new Date(msg.createdAt).toLocaleString() : 'Unknown time';
+                const senderName = msg.senderUsername || msg.senderId;
+                const recipientName = msg.recipientUsername || msg.recipientId;
+                return `
+                    <div class="history-item ${isFromMe ? 'from-me' : ''}">
+                        <div><strong>${isFromMe ? 'Me' : senderName}</strong> → <strong>${recipientName}</strong></div>
+                        <div>${msg.content}</div>
+                        <div class="meta">ID: ${msg.id} | ${time} | Read: ${msg.isRead ? 'Yes' : 'No'}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            historyDiv.scrollTop = historyDiv.scrollHeight;
         }
-    }
 
-    function connectWebSocket(serverUrl) {
-        const socket = new SockJS(serverUrl + '/ws');
-        stompClient = Stomp.over(socket);
-        
-        stompClient.debug = function(str) {
-            console.log('STOMP: ' + str);
-        };
-
-        const headers = {
-            'Authorization': 'Bearer ' + currentToken
-        };
-
-        log('Connecting to WebSocket...');
-
-        stompClient.connect(headers, function (frame) {
-            log('✓ WebSocket Connected', 'received');
-            
-            // Update UI
-            document.getElementById('loginBox').style.display = 'none';
-            document.getElementById('userInfo').style.display = 'block';
-            document.getElementById('debugBox').style.display = 'block';
-            document.getElementById('chatSection').classList.remove('hidden');
-            document.getElementById('displayUsername').textContent = currentUsername;
-            document.getElementById('status').textContent = '✓ Connected';
-
-            // Subscribe to private messages
-            stompClient.subscribe('/user/queue/messages', function (message) {
-                try {
-                    const msg = JSON.parse(message.body);
-                    const isMe = msg.senderUsername === currentUsername;
-                    log(`[PRIVATE${isMe ? ' - SENT' : ''}] <b>${msg.senderUsername}</b>: ${msg.content}`, isMe ? 'sent' : 'received');
-                } catch (e) {
-                    log('[PRIVATE] ' + message.body, 'received');
-                }
-            });
-            
-            // Subscribe to public topic
-            stompClient.subscribe('/topic/public', function (message) {
-                try {
-                    const msg = JSON.parse(message.body);
-                    log(`[PUBLIC] <b>${msg.senderUsername || 'unknown'}</b>: ${msg.content}`, 'info');
-                } catch (e) {
-                    log('[PUBLIC] ' + message.body, 'info');
-                }
-            });
-            
-            setTimeout(checkConnectedUsers, 1000);
-
-        }, function (error) {
-            log('✗ WebSocket error: ' + error, 'error');
-            disconnect();
-        });
-    }
-
-    function disconnect() {
-        if (stompClient !== null) {
-            stompClient.disconnect();
-        }
-        log('Disconnected');
-        document.getElementById('loginBox').style.display = 'block';
-        document.getElementById('userInfo').style.display = 'none';
-        document.getElementById('debugBox').style.display = 'none';
-        document.getElementById('chatSection').classList.add('hidden');
-        document.getElementById('loginStatus').textContent = '';
-        stompClient = null;
-        currentUsername = null;
-        currentUserId = null;
-        currentToken = null;
-    }
-
-    async function lookupUser() {
-        const recipientUsername = document.getElementById('recipientUsername').value;
-        const serverUrl = document.getElementById('serverUrl').value;
-        
-        if (!recipientUsername) {
-            log('Please enter a username to lookup', 'error');
-            return;
-        }
-        
-        try {
-            const response = await fetch(`${serverUrl}/api/v1/users/username/${recipientUsername}`, {
-                headers: {
-                    'Authorization': 'Bearer ' + currentToken
-                }
-            });
-            
-            if (response.ok) {
-                const userData = await response.json();
-                document.getElementById('recipientId').value = userData.id;
-                log(`✓ Found user "${recipientUsername}" with ID: ${userData.id}`, 'received');
-            } else {
-                log('User not found: ' + recipientUsername, 'error');
+        function sendPrivate() {
+            if (!stompClient || !stompClient.connected) {
+                alert('Please connect to WebSocket first!');
+                return;
             }
-        } catch (err) {
-            log('Lookup error: ' + err.message, 'error');
-        }
-    }
 
-    function sendPrivate() {
-        const recipientId = document.getElementById('recipientId').value;
-        const content = document.getElementById('message').value;
+            const recipientId = document.getElementById('recipientId').value;
+            const content = document.getElementById('messageContent').value;
 
-        if (!stompClient) {
-            log('Not connected', 'error');
-            return;
-        }
-        
-        if (!recipientId) {
-            log('Please lookup recipient first to get their UUID', 'error');
-            return;
-        }
+            if (!recipientId || !content) {
+                alert('Please enter recipient ID and message!');
+                return;
+            }
 
-        const payload = JSON.stringify({
-            'recipientId': recipientId,
-            'content': content
-        });
+            const message = {
+                recipientId: recipientId,
+                content: content
+            };
 
-        stompClient.send("/app/chat", {}, payload);
-        log('Sent private message: ' + content, 'sent');
-    }
-    
-    function sendPublic() {
-        const content = document.getElementById('message').value;
-
-        if (!stompClient) {
-            log('Not connected', 'error');
-            return;
+            stompClient.send('/app/chat', {}, JSON.stringify(message));
+            addMessage('sent', `To ${recipientId}: ${content}`);
+            document.getElementById('messageContent').value = '';
+            log(`Sent private message to ${recipientId}`);
         }
 
-        const payload = JSON.stringify({
-            'senderUsername': currentUsername,
-            'content': content
-        });
+        function sendPublic() {
+            if (!stompClient || !stompClient.connected) {
+                alert('Please connect to WebSocket first!');
+                return;
+            }
 
-        stompClient.send("/topic/public", {}, payload);
-        log('Broadcast to public: ' + content, 'sent');
-    }
+            const content = document.getElementById('messageContent').value;
 
-    async function loadHistory() {
-        const recipientId = document.getElementById('recipientId').value;
-        const serverUrl = document.getElementById('serverUrl').value;
+            if (!content) {
+                alert('Please enter a message!');
+                return;
+            }
 
-        if (!recipientId) {
-            log('Please lookup recipient first to get their UUID', 'error');
-            return;
+            const message = {
+                recipientId: 0,
+                content: content
+            };
+
+            stompClient.send('/app/chat.public', {}, JSON.stringify(message));
+            addMessage('sent', `[PUBLIC]: ${content}`);
+            document.getElementById('messageContent').value = '';
+            log('Sent public message');
         }
 
-        log('Loading chat history...', 'info');
+        function addMessage(type, text) {
+            const messagesDiv = document.getElementById('messages');
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+            messageEl.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+            messagesDiv.appendChild(messageEl);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
 
-        try {
-            const response = await fetch(`${serverUrl}/api/v1/chat/history/${recipientId}?page=0&size=50`, {
-                headers: {
-                    'Authorization': 'Bearer ' + currentToken
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+        }
+
+        async function checkConnectedUsers() {
+            if (!token) {
+                alert('Please login first!');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${SERVER}/api/v1/chat/connected-users`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const users = await response.json();
+                log(`Connected users: ${JSON.stringify(users, null, 2)}`);
+            } catch (error) {
+                log(`Error: ${error.message}`);
+            }
+        }
+
+        async function pollNewMessages() {
+            if (!token) {
+                alert('Please login first!');
+                return;
+            }
+
+            try {
+                log('Polling for new messages...');
+                const response = await fetch(`${SERVER}/api/v1/chat/history`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const messages = data.content || [];
+                    const newMessages = messages.filter(m => m.id > lastMessageId);
+                    
+                    if (newMessages.length > 0) {
+                        log(`Found ${newMessages.length} new messages!`);
+                        newMessages.forEach(msg => {
+                            if (msg.senderId !== currentUserId) {
+                                addMessage('received', `From ${msg.senderUsername || msg.senderId}: ${msg.content}`);
+                            }
+                        });
+                        lastMessageId = Math.max(...messages.map(m => m.id));
+                    } else {
+                        log('No new messages');
+                    }
                 }
-            });
-            
-            if (!response.ok) throw new Error('HTTP ' + response.status);
-            
-            const data = await response.json();
-            log(`--- Chat History (${data.content.length} messages) ---`, 'info');
-            data.content.reverse().forEach(msg => {
-                const prefix = msg.senderUsername === currentUsername ? '[YOU]' : '[THEM]';
-                log(`${prefix} <b>${msg.senderUsername}</b>: ${msg.content}`, 'received');
-            });
-            log('--- End of History ---', 'info');
-        } catch (err) {
-            log('Error loading history: ' + err.message, 'error');
+            } catch (error) {
+                log(`Poll error: ${error.message}`);
+            }
         }
-    }
-    
-    async function checkConnectedUsers() {
-        const serverUrl = document.getElementById('serverUrl').value;
-        
-        try {
-            const response = await fetch(`${serverUrl}/api/v1/chat/connected-users`, {
-                headers: {
-                    'Authorization': 'Bearer ' + currentToken
-                }
-            });
-            const users = await response.json();
-            document.getElementById('connectedUsers').innerHTML = 
-                '<b>Connected WebSocket users:</b> ' + (users.length > 0 ? users.join(', ') : '(none)');
-            log('Connected users: ' + JSON.stringify(users), 'info');
-        } catch (err) {
-            document.getElementById('connectedUsers').textContent = 'Could not fetch: ' + err.message;
-        }
-    }
-</script>
+    </script>
 </body>
 </html>
