@@ -1,6 +1,8 @@
 package com.runwithme.runwithme.api.controller
 
 import com.runwithme.runwithme.api.dto.CreateMessageRequest
+import com.runwithme.runwithme.api.dto.MarkMessagesReadRequest
+import com.runwithme.runwithme.api.dto.MarkMessagesReadResponse
 import com.runwithme.runwithme.api.dto.MessageDto
 import com.runwithme.runwithme.api.dto.PageResponse
 import com.runwithme.runwithme.api.service.MessageService
@@ -14,6 +16,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.security.Principal
@@ -69,5 +73,18 @@ class ChatController(
         @RequestParam(defaultValue = "20") size: Int,
         authentication: Authentication,
     ): ResponseEntity<PageResponse<MessageDto>> =
-        ResponseEntity.ok(messageService.getChatHistory(authentication.name, otherUserId, page, size))
+        ResponseEntity.ok(
+            messageService.getChatHistory(authentication.name, otherUserId, page, size),
+        )
+
+    @PostMapping("/api/v1/chat/read")
+    @Operation(summary = "Mark specific messages as read")
+    fun markMessagesAsRead(
+        @RequestBody request: MarkMessagesReadRequest,
+        authentication: Authentication,
+    ): ResponseEntity<MarkMessagesReadResponse> {
+        val updatedCount =
+            messageService.markMessagesAsRead(authentication.name, request.messageIds)
+        return ResponseEntity.ok(MarkMessagesReadResponse(updatedCount))
+    }
 }

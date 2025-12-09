@@ -42,6 +42,7 @@ class MessageService(
         return MessageDto.fromEntity(savedMessage, sender.username, recipient.username)
     }
 
+    @Transactional(readOnly = true)
     fun getChatHistory(
         username: String,
         otherUserId: UUID,
@@ -67,12 +68,44 @@ class MessageService(
             }
 
         val pageRequest = PageRequest.of(safePage, safeSize)
-        val messagePage = messageRepository.findChatHistory(currentUser.userId!!, otherUserId, pageRequest)
+        val messagePage =
+            messageRepository.findChatHistory(currentUser.userId!!, otherUserId, pageRequest)
 
         return PageResponse.fromPage(messagePage) {
-            val senderName = if (it.senderId == currentUser.userId) currentUser.username else otherUser.username
-            val recipientName = if (it.recipientId == currentUser.userId) currentUser.username else otherUser.username
+            val senderName =
+                if (it.senderId == currentUser.userId) {
+                    currentUser.username
+                } else {
+                    otherUser.username
+                }
+            val recipientName =
+                if (it.recipientId == currentUser.userId) {
+                    currentUser.username
+                } else {
+                    otherUser.username
+                }
             MessageDto.fromEntity(it, senderName, recipientName)
+        }
+    }
+
+    @Transactional
+    fun markMessagesAsRead(
+        username: String,
+        messageIds: List<Long>,
+    ): Int {
+        if (messageIds.isEmpty()) return 0
+
+        val currentUser =
+            userRepository.findByUsername(username).orElseThrow {
+                RuntimeException("User not found: $username")
+            }
+
+        val distinctIds = messageIds.distinct()
+        return try {
+            messageRepository.markMessagesAsReadByIds(currentUser.userId!!, distinctIds)
+        } catch (ex: org.springframework.dao.OptimisticLockingFailureException) {
+            // Handle concurrent update conflict, e.g., by logging or returning 0
+            0
         }
     }
 }
