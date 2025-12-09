@@ -56,8 +56,7 @@ class FeedPostCommentController(
         @Parameter(description = "Number of items per page", example = "10")
         @RequestParam(defaultValue = "10")
         size: Int,
-    ): ResponseEntity<PageResponse<FeedPostCommentDto>> =
-        ResponseEntity.ok(feedPostCommentService.getCommentsByPost(postId, page, size))
+    ): ResponseEntity<PageResponse<FeedPostCommentDto>> = ResponseEntity.ok(feedPostCommentService.getCommentsByPost(postId, page, size))
 
     @GetMapping("/user/{userId}")
     @Operation(
@@ -81,8 +80,7 @@ class FeedPostCommentController(
         @Parameter(description = "Number of items per page", example = "10")
         @RequestParam(defaultValue = "10")
         size: Int,
-    ): ResponseEntity<PageResponse<FeedPostCommentDto>> =
-        ResponseEntity.ok(feedPostCommentService.getCommentsByUser(userId, page, size))
+    ): ResponseEntity<PageResponse<FeedPostCommentDto>> = ResponseEntity.ok(feedPostCommentService.getCommentsByUser(userId, page, size))
 
     @GetMapping("/{commentId}")
     @Operation(

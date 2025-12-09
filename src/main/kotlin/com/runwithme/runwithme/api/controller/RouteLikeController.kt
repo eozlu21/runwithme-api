@@ -54,8 +54,7 @@ class RouteLikeController(
         @Parameter(description = "Number of items per page", example = "10")
         @RequestParam(defaultValue = "10")
         size: Int,
-    ): ResponseEntity<PageResponse<RouteLikeDto>> =
-        ResponseEntity.ok(routeLikeService.getLikesByRoute(routeId, page, size))
+    ): ResponseEntity<PageResponse<RouteLikeDto>> = ResponseEntity.ok(routeLikeService.getLikesByRoute(routeId, page, size))
 
     @GetMapping("/user/{userId}")
     @Operation(
@@ -80,8 +79,7 @@ class RouteLikeController(
         @Parameter(description = "Number of items per page", example = "10")
         @RequestParam(defaultValue = "10")
         size: Int,
-    ): ResponseEntity<PageResponse<RouteLikeDto>> =
-        ResponseEntity.ok(routeLikeService.getLikesByUser(userId, page, size))
+    ): ResponseEntity<PageResponse<RouteLikeDto>> = ResponseEntity.ok(routeLikeService.getLikesByUser(userId, page, size))
 
     @GetMapping("/route/{routeId}/count")
     @Operation(

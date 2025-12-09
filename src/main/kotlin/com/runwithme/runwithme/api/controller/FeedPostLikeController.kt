@@ -52,8 +52,7 @@ class FeedPostLikeController(
         @Parameter(description = "Number of items per page", example = "10")
         @RequestParam(defaultValue = "10")
         size: Int,
-    ): ResponseEntity<PageResponse<FeedPostLikeDto>> =
-        ResponseEntity.ok(feedPostLikeService.getLikesByPost(postId, page, size))
+    ): ResponseEntity<PageResponse<FeedPostLikeDto>> = ResponseEntity.ok(feedPostLikeService.getLikesByPost(postId, page, size))
 
     @GetMapping("/user/{userId}")
     @Operation(
@@ -77,8 +76,7 @@ class FeedPostLikeController(
         @Parameter(description = "Number of items per page", example = "10")
         @RequestParam(defaultValue = "10")
         size: Int,
-    ): ResponseEntity<PageResponse<FeedPostLikeDto>> =
-        ResponseEntity.ok(feedPostLikeService.getLikesByUser(userId, page, size))
+    ): ResponseEntity<PageResponse<FeedPostLikeDto>> = ResponseEntity.ok(feedPostLikeService.getLikesByUser(userId, page, size))
 
     @GetMapping("/post/{postId}/count")
     @Operation(

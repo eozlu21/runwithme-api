@@ -14,7 +14,7 @@ spotless {
             mapOf(
                 "ktlint_code_style" to "ktlint_official",
                 "indent_size" to "4",
-                "max_line_length" to "120",
+                "max_line_length" to "180",
                 "end_of_line" to "lf",
                 "charset" to "utf-8",
                 "insert_final_newline" to "true",

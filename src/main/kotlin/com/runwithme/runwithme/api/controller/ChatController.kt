@@ -103,7 +103,10 @@ class ChatController(
     @PostMapping("/api/v1/chat/send")
     @Operation(
         summary = "Send a private message via REST",
-        description = "Alternative to WebSocket for sending messages. The message will be saved to DB and delivered via WebSocket if recipient is connected.",
+        description =
+            "Alternative to WebSocket for sending messages. " +
+                "The message will be saved to DB and delivered via " +
+                "WebSocket if recipient is connected.",
     )
     @ApiResponses(
         value = [
@@ -163,8 +166,7 @@ class ChatController(
         @Parameter(description = "Number of messages per page", example = "20")
         @RequestParam(defaultValue = "20") size: Int,
         authentication: Authentication,
-    ): ResponseEntity<PageResponse<MessageDto>> =
-        ResponseEntity.ok(messageService.getChatHistory(authentication.name, otherUserId, page, size))
+    ): ResponseEntity<PageResponse<MessageDto>> = ResponseEntity.ok(messageService.getChatHistory(authentication.name, otherUserId, page, size))
 
     @GetMapping("/api/v1/chat/connected-users")
     @Operation(

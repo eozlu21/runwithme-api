@@ -342,6 +342,5 @@ class RouteController(
         @Parameter(description = "Number of items per page", example = "10")
         @RequestParam(defaultValue = "10")
         size: Int,
-    ): ResponseEntity<PageResponse<RouteDto>> =
-        ResponseEntity.ok(routeService.getNearbyRoutes(lat, lon, radius, page, size))
+    ): ResponseEntity<PageResponse<RouteDto>> = ResponseEntity.ok(routeService.getNearbyRoutes(lat, lon, radius, page, size))
 }

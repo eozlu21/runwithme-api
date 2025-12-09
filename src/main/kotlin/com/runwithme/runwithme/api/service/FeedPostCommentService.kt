@@ -53,8 +53,7 @@ class FeedPostCommentService(
         return PageResponse.fromPage(commentsPage, FeedPostCommentDto::fromEntity)
     }
 
-    fun getCommentById(commentId: Long): FeedPostCommentDto? =
-        feedPostCommentRepository.findById(commentId).map(FeedPostCommentDto::fromEntity).orElse(null)
+    fun getCommentById(commentId: Long): FeedPostCommentDto? = feedPostCommentRepository.findById(commentId).map(FeedPostCommentDto::fromEntity).orElse(null)
 
     fun getCommentCount(postId: Long): Long = feedPostCommentRepository.countByPostId(postId)
 

@@ -38,11 +38,9 @@ class UserService(
 
     fun getUserById(id: UUID): UserDto? = userRepository.findById(id).map(UserDto::fromEntity).orElse(null)
 
-    fun getUserByUsername(username: String): UserDto? =
-        userRepository.findByUsername(username).map(UserDto::fromEntity).orElse(null)
+    fun getUserByUsername(username: String): UserDto? = userRepository.findByUsername(username).map(UserDto::fromEntity).orElse(null)
 
-    fun getUserByEmail(email: String): UserDto? =
-        userRepository.findByEmail(email).map(UserDto::fromEntity).orElse(null)
+    fun getUserByEmail(email: String): UserDto? = userRepository.findByEmail(email).map(UserDto::fromEntity).orElse(null)
 
     fun getUserIdByUsername(username: String): UUID? =
         userRepository

@@ -33,8 +33,7 @@ class UserProfileService(
         return PageResponse.fromPage(userProfilePage, UserProfileDto::fromEntity)
     }
 
-    fun getUserProfileById(id: UUID): UserProfileDto? =
-        userProfileRepository.findById(id).map(UserProfileDto::fromEntity).orElse(null)
+    fun getUserProfileById(id: UUID): UserProfileDto? = userProfileRepository.findById(id).map(UserProfileDto::fromEntity).orElse(null)
 
     @Transactional
     fun createUserProfile(
