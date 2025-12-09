@@ -6,120 +6,222 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <style>
         body { font-family: sans-serif; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input, textarea { width: 100%; padding: 8px; box-sizing: border-box; }
-        button { padding: 10px 20px; cursor: pointer; }
-        #log { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; background: #f9f9f9; margin-top: 20px; }
+        button { padding: 10px 20px; cursor: pointer; margin-right: 5px; }
+        #log { border: 1px solid #ccc; height: 350px; overflow-y: scroll; padding: 10px; background: #f9f9f9; margin-top: 20px; }
         .message { margin-bottom: 5px; padding: 5px; border-bottom: 1px solid #eee; }
         .sent { color: blue; }
         .received { color: green; }
         .error { color: red; }
+        .info { color: #666; font-style: italic; }
+        .user-info { background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+        .debug-box { background: #fff3e0; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+        .login-box { background: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 15px; }
+        .login-box input { margin-bottom: 10px; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h2>Chat Test Client</h2>
+    <h2>Chat Test Client (User 1)</h2>
     
     <div class="form-group">
         <label>Server URL:</label>
-        <!-- Update this with your actual server IP -->
-        <input type="text" id="url" value="http://35.158.35.102:8080/ws">
+        <input type="text" id="serverUrl" value="http://35.158.35.102:8080">
     </div>
 
-    <div class="form-group">
-        <label>JWT Token (Bearer ...):</label>
-        <input type="text" id="token" placeholder="Paste your full JWT token here">
+    <!-- Login Section -->
+    <div class="login-box" id="loginBox">
+        <h3>Login</h3>
+        <div class="form-group">
+            <label>Username:</label>
+            <input type="text" id="username" placeholder="Enter your username">
+        </div>
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" id="password" placeholder="Enter your password">
+        </div>
+        <button onclick="login()">Login & Connect</button>
+        <span id="loginStatus" style="margin-left: 10px;"></span>
     </div>
 
-    <div class="form-group">
-        <button onclick="connect()" id="connectBtn">Connect</button>
-        <button onclick="disconnect()" id="disconnectBtn" disabled>Disconnect</button>
-        <span id="status" style="margin-left: 10px; color: #666;">Not connected</span>
+    <div class="user-info" id="userInfo" style="display: none;">
+        <b>Logged in as:</b> <span id="displayUsername">-</span><br>
+        <b>Your User ID:</b> <span id="userId">-</span><br>
+        <b>Status:</b> <span id="status" style="color: green;">-</span>
+        <button onclick="disconnect()" style="float: right;">Disconnect</button>
+    </div>
+    
+    <div class="debug-box" id="debugBox" style="display: none;">
+        <b>Debug Info:</b><br>
+        <span id="connectedUsers">Connected users: checking...</span>
+        <button onclick="checkConnectedUsers()" style="margin-left: 10px;">Refresh</button>
     </div>
 
     <hr>
 
-    <div class="form-group">
-        <label>Recipient ID:</label>
-        <input type="number" id="recipientId" value="2">
-    </div>
+    <div id="chatSection" class="hidden">
+        <div class="form-group">
+            <label>Recipient Username:</label>
+            <input type="text" id="recipientUsername" value="" placeholder="e.g. tuna">
+            <button onclick="lookupUser()" style="margin-top: 5px;">Lookup User ID</button>
+        </div>
 
-    <div class="form-group">
-        <label>Message:</label>
-        <textarea id="message" rows="3">Hello!</textarea>
-    </div>
+        <div class="form-group">
+            <label>Recipient ID (UUID - auto-filled on lookup):</label>
+            <input type="text" id="recipientId" value="" placeholder="Will be filled when you lookup username">
+            <button onclick="loadHistory()" id="historyBtn" style="margin-top: 5px;">Load History</button>
+        </div>
 
-    <div class="form-group">
-        <button onclick="sendMessage()" id="sendBtn" disabled>Send Message</button>
+        <div class="form-group">
+            <label>Message:</label>
+            <textarea id="message" rows="2">Hello!</textarea>
+        </div>
+
+        <div class="form-group">
+            <button onclick="sendPrivate()" id="sendBtn">Send Private</button>
+            <button onclick="sendPublic()" id="sendPublicBtn">Send Public (broadcast)</button>
+        </div>
     </div>
 
     <div id="log"></div>
+    <button onclick="clearLog()">Clear Log</button>
 </div>
 
 <script>
     let stompClient = null;
+    let currentUsername = null;
+    let currentUserId = null;
+    let currentToken = null;
 
     function log(message, type = '') {
         const logDiv = document.getElementById('log');
         const entry = document.createElement('div');
         entry.className = 'message ' + type;
-        entry.textContent = new Date().toLocaleTimeString() + ': ' + message;
+        entry.innerHTML = new Date().toLocaleTimeString() + ': ' + message;
         logDiv.appendChild(entry);
         logDiv.scrollTop = logDiv.scrollHeight;
     }
+    
+    function clearLog() {
+        document.getElementById('log').innerHTML = '';
+    }
 
-    function connect() {
-        const url = document.getElementById('url').value;
-        const token = document.getElementById('token').value;
-
-        if (!token) {
-            log('Please enter a JWT token', 'error');
+    async function login() {
+        const serverUrl = document.getElementById('serverUrl').value;
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        
+        if (!username || !password) {
+            log('Please enter username and password', 'error');
             return;
         }
+        
+        document.getElementById('loginStatus').textContent = 'Logging in...';
+        log('Logging in as ' + username + '...');
+        
+        try {
+            // Step 1: Login to get JWT token
+            const loginResponse = await fetch(`${serverUrl}/api/v1/auth/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            });
+            
+            if (!loginResponse.ok) {
+                throw new Error('Login failed: ' + loginResponse.status);
+            }
+            
+            const loginData = await loginResponse.json();
+            currentToken = loginData.token;
+            currentUsername = username;
+            log('✓ Login successful, got JWT token', 'received');
+            
+            // Step 2: Connect to WebSocket first (most important)
+            connectWebSocket(serverUrl);
+            
+            // Step 3: Try to get user details (non-blocking)
+            try {
+                const userResponse = await fetch(`${serverUrl}/api/v1/users/username/${username}`, {
+                    headers: {
+                        'Authorization': 'Bearer ' + currentToken
+                    }
+                });
+                
+                if (userResponse.ok) {
+                    const userData = await userResponse.json();
+                    currentUserId = userData.id;
+                    document.getElementById('userId').textContent = currentUserId;
+                    log('✓ Your User ID: ' + currentUserId, 'received');
+                } else {
+                    document.getElementById('userId').textContent = '(fetch failed - use Lookup)';
+                }
+            } catch (e) {
+                document.getElementById('userId').textContent = '(CORS error - use Lookup)';
+                log('Note: Could not fetch your user ID due to CORS. Use Lookup button.', 'info');
+            }
+            
+        } catch (err) {
+            log('Login error: ' + err.message, 'error');
+            document.getElementById('loginStatus').textContent = 'Login failed';
+        }
+    }
 
-        const socket = new SockJS(url);
+    function connectWebSocket(serverUrl) {
+        const socket = new SockJS(serverUrl + '/ws');
         stompClient = Stomp.over(socket);
-
-        const headers = {
-            'Authorization': 'Bearer ' + token.replace('Bearer ', '')
+        
+        stompClient.debug = function(str) {
+            console.log('STOMP: ' + str);
         };
 
-        log('Connecting...');
+        const headers = {
+            'Authorization': 'Bearer ' + currentToken
+        };
+
+        log('Connecting to WebSocket...');
 
         stompClient.connect(headers, function (frame) {
-            log('Connected: ' + frame);
+            log('✓ WebSocket Connected', 'received');
             
-            // Decode token for display
-            let username = "Unknown";
-            try {
-                const base64Url = token.split('.')[1];
-                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-                }).join(''));
-                username = JSON.parse(jsonPayload).sub;
-            } catch (e) {}
-            
-            document.getElementById('status').innerHTML = `Connected as: <b>${username}</b>`;
-            
-            document.getElementById('connectBtn').disabled = true;
-            document.getElementById('disconnectBtn').disabled = false;
-            document.getElementById('sendBtn').disabled = false;
+            // Update UI
+            document.getElementById('loginBox').style.display = 'none';
+            document.getElementById('userInfo').style.display = 'block';
+            document.getElementById('debugBox').style.display = 'block';
+            document.getElementById('chatSection').classList.remove('hidden');
+            document.getElementById('displayUsername').textContent = currentUsername;
+            document.getElementById('status').textContent = '✓ Connected';
 
             // Subscribe to private messages
             stompClient.subscribe('/user/queue/messages', function (message) {
                 try {
                     const msg = JSON.parse(message.body);
-                    log(`<b>${msg.senderUsername}</b>: ${msg.content}`, 'received');
+                    const isMe = msg.senderUsername === currentUsername;
+                    log(`[PRIVATE${isMe ? ' - SENT' : ''}] <b>${msg.senderUsername}</b>: ${msg.content}`, isMe ? 'sent' : 'received');
                 } catch (e) {
-                    log('Received: ' + message.body, 'received');
+                    log('[PRIVATE] ' + message.body, 'received');
                 }
             });
+            
+            // Subscribe to public topic
+            stompClient.subscribe('/topic/public', function (message) {
+                try {
+                    const msg = JSON.parse(message.body);
+                    log(`[PUBLIC] <b>${msg.senderUsername || 'unknown'}</b>: ${msg.content}`, 'info');
+                } catch (e) {
+                    log('[PUBLIC] ' + message.body, 'info');
+                }
+            });
+            
+            setTimeout(checkConnectedUsers, 1000);
 
         }, function (error) {
-            log('STOMP error: ' + error, 'error');
+            log('✗ WebSocket error: ' + error, 'error');
             disconnect();
         });
     }
@@ -129,15 +231,69 @@
             stompClient.disconnect();
         }
         log('Disconnected');
-        document.getElementById('status').innerHTML = 'Not connected';
-        document.getElementById('connectBtn').disabled = false;
-        document.getElementById('disconnectBtn').disabled = true;
-        document.getElementById('sendBtn').disabled = true;
+        document.getElementById('loginBox').style.display = 'block';
+        document.getElementById('userInfo').style.display = 'none';
+        document.getElementById('debugBox').style.display = 'none';
+        document.getElementById('chatSection').classList.add('hidden');
+        document.getElementById('loginStatus').textContent = '';
         stompClient = null;
+        currentUsername = null;
+        currentUserId = null;
+        currentToken = null;
     }
 
-    function sendMessage() {
+    async function lookupUser() {
+        const recipientUsername = document.getElementById('recipientUsername').value;
+        const serverUrl = document.getElementById('serverUrl').value;
+        
+        if (!recipientUsername) {
+            log('Please enter a username to lookup', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`${serverUrl}/api/v1/users/username/${recipientUsername}`, {
+                headers: {
+                    'Authorization': 'Bearer ' + currentToken
+                }
+            });
+            
+            if (response.ok) {
+                const userData = await response.json();
+                document.getElementById('recipientId').value = userData.id;
+                log(`✓ Found user "${recipientUsername}" with ID: ${userData.id}`, 'received');
+            } else {
+                log('User not found: ' + recipientUsername, 'error');
+            }
+        } catch (err) {
+            log('Lookup error: ' + err.message, 'error');
+        }
+    }
+
+    function sendPrivate() {
         const recipientId = document.getElementById('recipientId').value;
+        const content = document.getElementById('message').value;
+
+        if (!stompClient) {
+            log('Not connected', 'error');
+            return;
+        }
+        
+        if (!recipientId) {
+            log('Please lookup recipient first to get their UUID', 'error');
+            return;
+        }
+
+        const payload = JSON.stringify({
+            'recipientId': recipientId,
+            'content': content
+        });
+
+        stompClient.send("/app/chat", {}, payload);
+        log('Sent private message: ' + content, 'sent');
+    }
+    
+    function sendPublic() {
         const content = document.getElementById('message').value;
 
         if (!stompClient) {
@@ -146,12 +302,62 @@
         }
 
         const payload = JSON.stringify({
-            'recipientId': parseInt(recipientId),
+            'senderUsername': currentUsername,
             'content': content
         });
 
-        stompClient.send("/app/chat", {}, payload);
-        log('Sent: ' + payload, 'sent');
+        stompClient.send("/topic/public", {}, payload);
+        log('Broadcast to public: ' + content, 'sent');
+    }
+
+    async function loadHistory() {
+        const recipientId = document.getElementById('recipientId').value;
+        const serverUrl = document.getElementById('serverUrl').value;
+
+        if (!recipientId) {
+            log('Please lookup recipient first to get their UUID', 'error');
+            return;
+        }
+
+        log('Loading chat history...', 'info');
+
+        try {
+            const response = await fetch(`${serverUrl}/api/v1/chat/history/${recipientId}?page=0&size=50`, {
+                headers: {
+                    'Authorization': 'Bearer ' + currentToken
+                }
+            });
+            
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            
+            const data = await response.json();
+            log(`--- Chat History (${data.content.length} messages) ---`, 'info');
+            data.content.reverse().forEach(msg => {
+                const prefix = msg.senderUsername === currentUsername ? '[YOU]' : '[THEM]';
+                log(`${prefix} <b>${msg.senderUsername}</b>: ${msg.content}`, 'received');
+            });
+            log('--- End of History ---', 'info');
+        } catch (err) {
+            log('Error loading history: ' + err.message, 'error');
+        }
+    }
+    
+    async function checkConnectedUsers() {
+        const serverUrl = document.getElementById('serverUrl').value;
+        
+        try {
+            const response = await fetch(`${serverUrl}/api/v1/chat/connected-users`, {
+                headers: {
+                    'Authorization': 'Bearer ' + currentToken
+                }
+            });
+            const users = await response.json();
+            document.getElementById('connectedUsers').innerHTML = 
+                '<b>Connected WebSocket users:</b> ' + (users.length > 0 ? users.join(', ') : '(none)');
+            log('Connected users: ' + JSON.stringify(users), 'info');
+        } catch (err) {
+            document.getElementById('connectedUsers').textContent = 'Could not fetch: ' + err.message;
+        }
     }
 </script>
 </body>

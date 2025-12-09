@@ -1,8 +1,10 @@
 package com.runwithme.runwithme.api.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.runwithme.runwithme.api.entity.Route
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.OffsetDateTime
+import java.util.UUID
 
 @Schema(description = "Route data transfer object")
 data class RouteDto(
@@ -15,7 +17,9 @@ data class RouteDto(
     @Schema(description = "Estimated duration in seconds", example = "1800")
     val estimatedDurationS: Int?,
     @Schema(description = "Difficulty level", example = "intermediate") val difficulty: String?,
-    @Schema(description = "Is route publicly visible", example = "true") val isPublic: Boolean,
+    @Schema(description = "Is route publicly visible", example = "true")
+    @JsonProperty("isPublic")
+    val isPublic: Boolean,
     @Schema(description = "Start point latitude", example = "40.7829")
     val startPointLat: Double?,
     @Schema(description = "Start point longitude", example = "-73.9654")
@@ -24,7 +28,7 @@ data class RouteDto(
     @Schema(description = "End point longitude", example = "-73.9680") val endPointLon: Double?,
     @Schema(description = "List of route points") val points: List<RoutePointDto>? = null,
     @Schema(description = "ID of the user who created the route", example = "1")
-    val creatorId: Long?,
+    val creatorId: UUID?,
     @Schema(description = "Creation timestamp") val createdAt: OffsetDateTime,
     @Schema(description = "Last update timestamp") val updatedAt: OffsetDateTime,
 ) {
@@ -69,6 +73,7 @@ data class CreateRouteRequest(
     @Schema(description = "Difficulty level", example = "intermediate")
     val difficulty: String? = null,
     @Schema(description = "Is route publicly visible", example = "true")
+    @JsonProperty("isPublic")
     val isPublic: Boolean = true,
     @Schema(description = "Start point latitude", example = "40.7829")
     val startPointLat: Double? = null,
@@ -93,6 +98,7 @@ data class UpdateRouteRequest(
     @Schema(description = "Difficulty level", example = "intermediate")
     val difficulty: String? = null,
     @Schema(description = "Is route publicly visible", example = "true")
+    @JsonProperty("isPublic")
     val isPublic: Boolean? = null,
     @Schema(description = "Start point latitude", example = "40.7829")
     val startPointLat: Double? = null,

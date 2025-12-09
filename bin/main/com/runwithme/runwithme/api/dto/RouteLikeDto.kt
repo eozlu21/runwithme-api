@@ -3,13 +3,14 @@ package com.runwithme.runwithme.api.dto
 import com.runwithme.runwithme.api.entity.RouteLike
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.OffsetDateTime
+import java.util.UUID
 
 @Schema(description = "Route like data transfer object")
 data class RouteLikeDto(
     @Schema(description = "Route ID", example = "1")
     val routeId: Long,
     @Schema(description = "User ID", example = "1")
-    val userId: Long,
+    val userId: UUID,
     @Schema(description = "Created timestamp")
     val createdAt: OffsetDateTime,
 ) {
