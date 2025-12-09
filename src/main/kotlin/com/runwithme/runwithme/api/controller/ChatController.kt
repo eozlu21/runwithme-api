@@ -104,6 +104,23 @@ class ChatController(
         return ResponseEntity.ok(users)
     }
 
+    @GetMapping("/api/v1/chat/history")
+    @Operation(summary = "Get all chat messages involving the authenticated user")
+    fun getAllRelatedMessages(
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+        @RequestParam(defaultValue = "false") friendsOnly: Boolean,
+        authentication: Authentication,
+    ): ResponseEntity<PageResponse<MessageDto>> =
+        ResponseEntity.ok(
+            messageService.getAllRelatedMessages(
+                authentication.name,
+                page,
+                size,
+                friendsOnly,
+            ),
+        )
+
     @PostMapping("/api/v1/chat/read")
     @Operation(summary = "Mark specific messages as read")
     fun markMessagesAsRead(

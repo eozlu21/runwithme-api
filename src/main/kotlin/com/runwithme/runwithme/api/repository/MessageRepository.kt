@@ -20,6 +20,31 @@ interface MessageRepository : JpaRepository<Message, Long> {
         pageable: Pageable,
     ): Page<Message>
 
+    @Query(
+        """
+        SELECT m FROM Message m
+        WHERE (m.senderId = :userId OR m.recipientId = :userId)
+        ORDER BY m.createdAt DESC
+        """,
+    )
+    fun findRelatedMessagesForUser(
+        userId: UUID,
+        pageable: Pageable,
+    ): Page<Message>
+
+    @Query(
+        """
+        SELECT m FROM Message m
+        WHERE ((m.senderId = :userId AND m.recipientId IN :friendIds) OR (m.recipientId = :userId AND m.senderId IN :friendIds))
+        ORDER BY m.createdAt DESC
+        """,
+    )
+    fun findRelatedMessagesWithFriends(
+        userId: UUID,
+        friendIds: List<UUID>,
+        pageable: Pageable,
+    ): Page<Message>
+
     fun countByRecipientIdAndIsReadFalse(recipientId: UUID): Long
 
     // NOTE: recipientId must always be set to the authenticated user's ID.
