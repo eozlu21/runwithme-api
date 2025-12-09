@@ -25,3 +25,4 @@
 .ec2-config
 *.pem
 private_key*
+bin/
