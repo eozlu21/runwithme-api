@@ -65,7 +65,9 @@ class ChatController(
             // Check if user is connected
             val recipientUser = simpUserRegistry.getUser(messageDto.recipientUsername)
             if (recipientUser != null) {
-                logger.info("Recipient ${messageDto.recipientUsername} is connected with ${recipientUser.sessions.size} sessions")
+                logger.info(
+                    "Recipient ${messageDto.recipientUsername} is connected with ${recipientUser.sessions.size} sessions",
+                )
             } else {
                 logger.warn("Recipient ${messageDto.recipientUsername} is NOT connected")
             }
