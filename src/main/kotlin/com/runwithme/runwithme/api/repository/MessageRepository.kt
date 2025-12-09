@@ -4,6 +4,7 @@ import com.runwithme.runwithme.api.entity.Message
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.util.UUID
@@ -20,4 +21,14 @@ interface MessageRepository : JpaRepository<Message, Long> {
     ): Page<Message>
 
     fun countByRecipientIdAndIsReadFalse(recipientId: UUID): Long
+
+    // NOTE: recipientId must always be set to the authenticated user's ID.
+    @Modifying(clearAutomatically = true)
+    @Query(
+        "UPDATE Message m SET m.isRead = true WHERE m.recipientId = :recipientId AND m.id IN :messageIds",
+    )
+    fun markMessagesAsReadByIds(
+        recipientId: UUID, // Must be the authenticated user's ID
+        messageIds: List<Long>,
+    ): Int
 }
