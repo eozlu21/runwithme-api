@@ -1,5 +1,6 @@
 package com.runwithme.runwithme.api.service
 
+import com.runwithme.runwithme.api.config.CacheConfig
 import com.runwithme.runwithme.api.dto.CreateRouteRequest
 import com.runwithme.runwithme.api.dto.PageResponse
 import com.runwithme.runwithme.api.dto.RouteDto
@@ -12,6 +13,8 @@ import com.runwithme.runwithme.api.repository.RouteRepository
 import com.runwithme.runwithme.api.repository.UserRepository
 import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.GeometryFactory
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
@@ -76,6 +79,7 @@ class RouteService(
         return PageResponse.fromPage(routePage) { RouteDto.fromEntity(it) }
     }
 
+    @Cacheable(value = [CacheConfig.ROUTE_CACHE], key = "#id")
     fun getRouteById(id: Long): RouteDto? {
         val route = routeRepository.findById(id).orElse(null) ?: return null
         val points =
@@ -169,6 +173,7 @@ class RouteService(
     }
 
     @Transactional
+    @CacheEvict(value = [CacheConfig.ROUTE_CACHE], key = "#id")
     fun updateRoute(
         id: Long,
         request: UpdateRouteRequest,
@@ -259,6 +264,7 @@ class RouteService(
     }
 
     @Transactional
+    @CacheEvict(value = [CacheConfig.ROUTE_CACHE], key = "#id")
     fun deleteRoute(id: Long): Boolean {
         if (!routeRepository.existsById(id)) {
             return false

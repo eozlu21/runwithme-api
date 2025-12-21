@@ -129,10 +129,11 @@ jobs:
             gunzip -c app-image.tar.gz | ${DOCKER_CMD} load
 
             # Run new container
+            # Note: Redis runs on same host, accessed via host network
             ${DOCKER_CMD} run -d \
               --name ${{ env.CONTAINER_NAME }} \
               --restart unless-stopped \
-              -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
+              --network host \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
