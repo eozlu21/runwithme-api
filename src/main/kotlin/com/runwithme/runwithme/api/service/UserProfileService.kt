@@ -1,5 +1,6 @@
 package com.runwithme.runwithme.api.service
 
+import com.runwithme.runwithme.api.config.CacheConfig
 import com.runwithme.runwithme.api.dto.CreateUserProfileRequest
 import com.runwithme.runwithme.api.dto.PageResponse
 import com.runwithme.runwithme.api.dto.UpdateUserProfileRequest
@@ -7,6 +8,8 @@ import com.runwithme.runwithme.api.dto.UserProfileDto
 import com.runwithme.runwithme.api.entity.UserProfile
 import com.runwithme.runwithme.api.exception.UnauthorizedActionException
 import com.runwithme.runwithme.api.repository.UserProfileRepository
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
@@ -33,6 +36,7 @@ class UserProfileService(
         return PageResponse.fromPage(userProfilePage, UserProfileDto::fromEntity)
     }
 
+    @Cacheable(value = [CacheConfig.USER_PROFILE_CACHE], key = "#id")
     fun getUserProfileById(id: UUID): UserProfileDto? = userProfileRepository.findById(id).map(UserProfileDto::fromEntity).orElse(null)
 
     @Transactional
@@ -68,6 +72,7 @@ class UserProfileService(
     }
 
     @Transactional
+    @CacheEvict(value = [CacheConfig.USER_PROFILE_CACHE], key = "#id")
     fun updateUserProfile(
         id: UUID,
         request: UpdateUserProfileRequest,
@@ -96,6 +101,7 @@ class UserProfileService(
     }
 
     @Transactional
+    @CacheEvict(value = [CacheConfig.USER_PROFILE_CACHE], key = "#id")
     fun deleteUserProfile(id: UUID): Boolean {
         if (!userProfileRepository.existsById(id)) {
             return false

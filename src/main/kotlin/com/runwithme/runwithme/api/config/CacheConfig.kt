@@ -28,17 +28,10 @@ class CacheConfig(
     @Value("\${spring.data.redis.password:}") private val redisPassword: String,
 ) {
     companion object {
-        // Cache names (must be const for annotation use)
-        const val ROUTE_CACHE = "routes"
         const val USER_PROFILE_CACHE = "userProfiles"
-        const val USER_STATISTICS_CACHE = "userStatistics"
     }
 
-    // Conservative TTLs for limited RAM
-    private val routeTtl: Duration = Duration.ofMinutes(10)
     private val userProfileTtl: Duration = Duration.ofMinutes(15)
-    private val userStatisticsTtl: Duration = Duration.ofMinutes(5)
-    private val defaultTtl: Duration = Duration.ofMinutes(5)
 
     @Bean
     fun redisConnectionFactory(): RedisConnectionFactory {
@@ -51,7 +44,6 @@ class CacheConfig(
 
     @Bean
     fun cacheManager(redisConnectionFactory: RedisConnectionFactory): CacheManager {
-        // Configure ObjectMapper with JavaTimeModule and type info as @class property (same as default serializer)
         val objectMapper =
             ObjectMapper().apply {
                 registerModule(JavaTimeModule())
@@ -70,22 +62,15 @@ class CacheConfig(
         val defaultConfig =
             RedisCacheConfiguration
                 .defaultCacheConfig()
-                .entryTtl(defaultTtl)
+                .entryTtl(userProfileTtl)
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer))
                 .disableCachingNullValues()
 
-        val cacheConfigurations =
-            mapOf(
-                ROUTE_CACHE to defaultConfig.entryTtl(routeTtl),
-                USER_PROFILE_CACHE to defaultConfig.entryTtl(userProfileTtl),
-                USER_STATISTICS_CACHE to defaultConfig.entryTtl(userStatisticsTtl),
-            )
-
         return RedisCacheManager
             .builder(redisConnectionFactory)
             .cacheDefaults(defaultConfig)
-            .withInitialCacheConfigurations(cacheConfigurations)
+            .withInitialCacheConfigurations(mapOf(USER_PROFILE_CACHE to defaultConfig))
             .build()
     }
 }
