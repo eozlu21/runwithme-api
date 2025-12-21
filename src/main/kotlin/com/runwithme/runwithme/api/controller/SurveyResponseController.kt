@@ -28,7 +28,7 @@ class SurveyResponseController(
     @GetMapping("/my")
     @Operation(summary = "Get my survey responses")
     fun getMySurveyResponses(principal: Principal): ResponseEntity<List<SurveyResponseDto>> {
-        val user = userService.getUserByEmail(principal.name) ?: throw IllegalArgumentException("User not found")
+        val user = userService.getUserByUsername(principal.name) ?: throw IllegalArgumentException("User not found")
         val responses = surveyResponseService.getSurveyResponsesByUserId(user.userId)
         return ResponseEntity.ok(responses)
     }
@@ -39,7 +39,7 @@ class SurveyResponseController(
         principal: Principal,
         @RequestBody request: CreateSurveyResponseDto,
     ): ResponseEntity<SurveyResponseDto> {
-        val user = userService.getUserByEmail(principal.name) ?: throw IllegalArgumentException("User not found")
+        val user = userService.getUserByUsername(principal.name) ?: throw IllegalArgumentException("User not found")
         val response = surveyResponseService.createSurveyResponse(user.userId, request)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
@@ -51,7 +51,7 @@ class SurveyResponseController(
         @PathVariable id: Long,
         @RequestBody request: CreateSurveyResponseDto,
     ): ResponseEntity<SurveyResponseDto> {
-        val user = userService.getUserByEmail(principal.name) ?: throw IllegalArgumentException("User not found")
+        val user = userService.getUserByUsername(principal.name) ?: throw IllegalArgumentException("User not found")
         val response = surveyResponseService.updateSurveyResponse(id, user.userId, request)
         return ResponseEntity.ok(response)
     }
@@ -62,7 +62,7 @@ class SurveyResponseController(
         principal: Principal,
         @PathVariable id: Long,
     ): ResponseEntity<Void> {
-        val user = userService.getUserByEmail(principal.name) ?: throw IllegalArgumentException("User not found")
+        val user = userService.getUserByUsername(principal.name) ?: throw IllegalArgumentException("User not found")
         surveyResponseService.deleteSurveyResponse(id, user.userId)
         return ResponseEntity.noContent().build()
     }
