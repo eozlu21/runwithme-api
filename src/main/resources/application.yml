@@ -29,11 +29,6 @@ spring:
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration

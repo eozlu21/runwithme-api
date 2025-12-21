@@ -6,7 +6,6 @@ Kotlin + Spring Boot backend for RunWithMe.
 - Kotlin, Spring Boot 3.x (Web, Security, Validation, Actuator)
 - Spring Data JPA + PostgreSQL + PostGIS
 - Spring Data MongoDB for DMs
-- Redis for caching
 - STOMP over WebSocket for realtime feed/chat
 - springdoc-openapi for OpenAPI 3
 - JDK 21, Gradle 8

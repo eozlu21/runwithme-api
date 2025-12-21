@@ -13,7 +13,4 @@ ENV JAVA_OPTS=""
 # Mail credentials - pass these at runtime via -e or docker-compose
 ENV MAIL_USERNAME=""
 ENV MAIL_PASSWORD=""
-# Redis defaults to localhost:6379 (no auth) - override via env vars if needed
-ENV REDIS_HOST="localhost"
-ENV REDIS_PORT="6379"
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
