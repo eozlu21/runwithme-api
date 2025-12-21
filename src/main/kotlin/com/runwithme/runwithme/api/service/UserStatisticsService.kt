@@ -46,21 +46,37 @@ class UserStatisticsService(
         userStatisticsRepository.save(stats)
     }
 
-    fun getUserStatistics(userId: UUID): UserStatisticsResponse {
-        val stats =
+    fun getUserStatistics(
+        userId: UUID,
+        days: Int? = null,
+    ): UserStatisticsResponse {
+        // Always ensure all-time stats are up to date
+        val allTimeStats =
             userStatisticsRepository.findById(userId).orElseGet {
-                // If not found, try to calculate it once
                 updateStatistics(userId)
                 userStatisticsRepository.findById(userId).orElse(UserStatistics(userId = userId))
             }
 
-        val allTimeDistanceKm = stats.totalDistanceMeters / 1000.0
+        val allTimeDistanceKm = allTimeStats.totalDistanceMeters / 1000.0
 
-        // Average Pace: min/km
-        // totalMovingTime (s) / totalDistance (km) = s/km
+        // Get runs for the period (filtered by days if specified)
+        val runs =
+            if (days != null) {
+                val since = OffsetDateTime.now().minusDays(days.toLong())
+                runSessionRepository.findAllByUserIdAndStartedAtGreaterThanEqual(userId, since)
+            } else {
+                runSessionRepository.findAllByUserId(userId)
+            }
+
+        val periodTotalRuns = runs.size
+        val periodTotalDistanceMeters = runs.sumOf { it.totalDistanceM ?: 0.0 }
+        val periodTotalDistanceKm = periodTotalDistanceMeters / 1000.0
+        val periodTotalMovingTimeSeconds = runs.sumOf { it.movingTimeS?.toLong() ?: 0L }
+
+        // Average Pace for the period: min/km
         val avgPaceSecPerKm =
-            if (stats.totalDistanceMeters > 0) {
-                stats.totalMovingTimeSeconds.toDouble() / (stats.totalDistanceMeters / 1000.0)
+            if (periodTotalDistanceMeters > 0) {
+                periodTotalMovingTimeSeconds.toDouble() / periodTotalDistanceKm
             } else {
                 0.0
             }
@@ -68,23 +84,38 @@ class UserStatisticsService(
         val avgPaceSec = (avgPaceSecPerKm % 60).toInt()
         val averagePace = String.format("%d:%02d /km", avgPaceMin, avgPaceSec)
 
-        // Weeks active
+        // Average distance per run for the period
+        val averageDistancePerRunKm =
+            if (periodTotalRuns > 0) {
+                periodTotalDistanceKm / periodTotalRuns
+            } else {
+                0.0
+            }
+
+        // Weeks active (for runs per week / km per week calculation)
         val weeksActive =
-            if (stats.firstRunDate != null) {
-                val days = ChronoUnit.DAYS.between(stats.firstRunDate, OffsetDateTime.now())
+            if (days != null) {
                 if (days < 7) 1.0 else days / 7.0
+            } else if (allTimeStats.firstRunDate != null) {
+                val daysSinceFirst = ChronoUnit.DAYS.between(allTimeStats.firstRunDate, OffsetDateTime.now())
+                if (daysSinceFirst < 7) 1.0 else daysSinceFirst / 7.0
             } else {
                 1.0
             }
 
-        val runsPerWeek = stats.totalRuns / weeksActive
-        val kmPerWeek = allTimeDistanceKm / weeksActive
+        val runsPerWeek = periodTotalRuns / weeksActive
+        val kmPerWeek = periodTotalDistanceKm / weeksActive
 
         return UserStatisticsResponse(
+            totalRuns = periodTotalRuns,
+            totalDistanceKm = String.format("%.1f", periodTotalDistanceKm).toDouble(),
             averagePace = averagePace,
+            averageDistancePerRunKm = String.format("%.2f", averageDistancePerRunKm).toDouble(),
             runsPerWeek = String.format("%.1f", runsPerWeek).toDouble(),
             kmPerWeek = String.format("%.1f", kmPerWeek).toDouble(),
             allTimeDistanceKm = String.format("%.1f", allTimeDistanceKm).toDouble(),
+            allTimeTotalRuns = allTimeStats.totalRuns,
+            periodDays = days,
         )
     }
 }

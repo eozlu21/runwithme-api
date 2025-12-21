@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
@@ -18,11 +19,15 @@ class UserStatisticsController(
     private val userStatisticsService: UserStatisticsService,
 ) {
     @GetMapping("/{userId}/statistics")
-    @Operation(summary = "Get user statistics", description = "Get statistics for a user (average pace, runs per week, etc.)")
+    @Operation(
+        summary = "Get user statistics",
+        description = "Get statistics for a user. Optionally filter by last N days using the 'days' parameter.",
+    )
     fun getUserStatistics(
         @PathVariable userId: UUID,
+        @RequestParam(required = false) days: Int?,
     ): ResponseEntity<UserStatisticsResponse> {
-        val stats = userStatisticsService.getUserStatistics(userId)
+        val stats = userStatisticsService.getUserStatistics(userId, days)
         return ResponseEntity.ok(stats)
     }
 }
