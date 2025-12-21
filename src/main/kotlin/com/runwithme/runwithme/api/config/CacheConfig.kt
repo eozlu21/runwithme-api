@@ -1,5 +1,6 @@
 package com.runwithme.runwithme.api.config
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
@@ -50,6 +51,7 @@ class CacheConfig(
 
     @Bean
     fun cacheManager(redisConnectionFactory: RedisConnectionFactory): CacheManager {
+        // Configure ObjectMapper with JavaTimeModule and type info as @class property (same as default serializer)
         val objectMapper =
             ObjectMapper().apply {
                 registerModule(JavaTimeModule())
@@ -60,6 +62,7 @@ class CacheConfig(
                         .allowIfBaseType(Any::class.java)
                         .build(),
                     ObjectMapper.DefaultTyping.NON_FINAL,
+                    JsonTypeInfo.As.PROPERTY,
                 )
             }
         val jsonSerializer = GenericJackson2JsonRedisSerializer(objectMapper)
