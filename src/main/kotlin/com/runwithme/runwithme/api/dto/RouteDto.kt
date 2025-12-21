@@ -99,8 +99,8 @@ data class UpdateRouteRequest(
     @Schema(description = "Difficulty level", example = "intermediate")
     val difficulty: String? = null,
     @Schema(description = "Is route publicly visible", example = "true")
-    @field:JsonProperty("isPublic")
-    @param:JsonProperty("isPublic")
+    @field:JsonProperty("public")
+    @param:JsonProperty("public")
     val isPublic: Boolean? = null,
     @Schema(description = "Start point latitude", example = "40.7829")
     val startPointLat: Double? = null,

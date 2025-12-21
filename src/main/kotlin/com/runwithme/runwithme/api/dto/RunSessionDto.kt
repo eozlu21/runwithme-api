@@ -112,6 +112,8 @@ data class EndRunSessionRequest(
     @field:JsonProperty("isPublic")
     @param:JsonProperty("isPublic")
     val isPublic: Boolean? = null,
+    @Schema(description = "Moving time in seconds (overrides auto-calculation)", example = "1800")
+    val movingTimeS: Int? = null,
 )
 
 @Schema(description = "Update run session request")

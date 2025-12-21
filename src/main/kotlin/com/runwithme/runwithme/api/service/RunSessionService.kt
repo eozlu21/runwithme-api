@@ -228,6 +228,16 @@ class RunSessionService(
         // Compute stats and geom_track from points
         computeSessionStats(session)
 
+        // Override movingTimeS if provided in request
+        if (request?.movingTimeS != null) {
+            session.movingTimeS = request.movingTimeS
+            // Recalculate pace based on provided moving time
+            val totalDistance = session.totalDistanceM ?: 0.0
+            if (totalDistance > 0) {
+                session.avgPaceSecPerKm = (request.movingTimeS.toDouble() / totalDistance) * 1000.0
+            }
+        }
+
         val savedSession = runSessionRepository.save(session)
 
         if (savedSession.userId != null) {
