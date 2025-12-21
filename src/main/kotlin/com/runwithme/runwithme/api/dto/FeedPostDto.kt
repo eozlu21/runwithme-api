@@ -25,15 +25,19 @@ data class FeedPostDto(
     @Schema(description = "Creation timestamp")
     val createdAt: OffsetDateTime,
     @Schema(description = "Number of likes on this post", example = "42")
+    @get:JsonProperty("likesCount")
     val likeCount: Long? = null,
     @Schema(description = "Number of comments on this post", example = "5")
+    @get:JsonProperty("commentsCount")
     val commentCount: Long? = null,
     @Schema(description = "Whether the current user has liked this post")
     @get:JsonProperty("isLikedByCurrentUser")
     val isLikedByCurrentUser: Boolean? = null,
     @Schema(description = "Linked route ID from mapping table", example = "1")
+    @get:JsonProperty("routeId")
     val linkedRouteId: Long? = null,
     @Schema(description = "Linked run session ID from mapping table", example = "1")
+    @get:JsonProperty("runSessionId")
     val linkedRunSessionId: Long? = null,
 ) {
     companion object {
