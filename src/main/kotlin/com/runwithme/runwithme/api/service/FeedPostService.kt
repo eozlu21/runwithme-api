@@ -3,6 +3,8 @@ package com.runwithme.runwithme.api.service
 import com.runwithme.runwithme.api.dto.CreateFeedPostRequest
 import com.runwithme.runwithme.api.dto.FeedPostDto
 import com.runwithme.runwithme.api.dto.PageResponse
+import com.runwithme.runwithme.api.dto.RoutePointDto
+import com.runwithme.runwithme.api.dto.RunSessionPointDto
 import com.runwithme.runwithme.api.dto.UpdateFeedPostRequest
 import com.runwithme.runwithme.api.entity.FeedPost
 import com.runwithme.runwithme.api.entity.FeedPostRoute
@@ -15,7 +17,10 @@ import com.runwithme.runwithme.api.repository.FeedPostRepository
 import com.runwithme.runwithme.api.repository.FeedPostRouteRepository
 import com.runwithme.runwithme.api.repository.FeedPostRunSessionRepository
 import com.runwithme.runwithme.api.repository.FriendshipRepository
+import com.runwithme.runwithme.api.repository.RoutePointRepository
 import com.runwithme.runwithme.api.repository.RouteRepository
+import com.runwithme.runwithme.api.repository.RunSessionPointRepository
+import com.runwithme.runwithme.api.repository.RunSessionRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
@@ -31,6 +36,9 @@ class FeedPostService(
     private val feedPostRunSessionRepository: FeedPostRunSessionRepository,
     private val friendshipRepository: FriendshipRepository,
     private val routeRepository: RouteRepository,
+    private val routePointRepository: RoutePointRepository,
+    private val runSessionRepository: RunSessionRepository,
+    private val runSessionPointRepository: RunSessionPointRepository,
 ) {
     private fun createPageRequest(
         page: Int,
@@ -68,6 +76,55 @@ class FeedPostService(
             val linkedRouteId = feedPostRouteRepository.findByPostId(post.id!!).orElse(null)?.routeId
             val linkedRunSessionId = feedPostRunSessionRepository.findByPostId(post.id!!).orElse(null)?.runSessionId
 
+            // Fetch route details if linkedRouteId is present
+            var routeDistanceM: Double? = null
+            var routeTitle: String? = null
+            var startPointLat: Double? = null
+            var startPointLon: Double? = null
+            var endPointLat: Double? = null
+            var endPointLon: Double? = null
+            var routePoints: List<RoutePointDto>? = null
+
+            if (linkedRouteId != null) {
+                val route = routeRepository.findById(linkedRouteId).orElse(null)
+                if (route != null) {
+                    routeDistanceM = route.distanceM
+                    routeTitle = route.title
+                    startPointLat = route.startPoint?.y
+                    startPointLon = route.startPoint?.x
+                    endPointLat = route.endPoint?.y
+                    endPointLon = route.endPoint?.x
+                    routePoints =
+                        routePointRepository.findByRouteIdOrderBySeqNoAsc(linkedRouteId).map {
+                            RoutePointDto(
+                                seqNo = it.seqNo ?: 0,
+                                latitude = it.pointGeom?.y ?: 0.0,
+                                longitude = it.pointGeom?.x ?: 0.0,
+                                elevationM = it.elevationM,
+                            )
+                        }
+                }
+            }
+
+            // Fetch run session details if linkedRunSessionId is present
+            var runDistanceM: Double? = null
+            var runDurationS: Int? = null
+            var runPaceSecPerKm: Double? = null
+            var runPoints: List<RunSessionPointDto>? = null
+
+            if (linkedRunSessionId != null) {
+                val runSession = runSessionRepository.findById(linkedRunSessionId).orElse(null)
+                if (runSession != null) {
+                    runDistanceM = runSession.totalDistanceM
+                    runDurationS = runSession.movingTimeS
+                    runPaceSecPerKm = runSession.avgPaceSecPerKm
+                    runPoints =
+                        runSessionPointRepository.findByRunSessionIdOrderBySeqNoAsc(linkedRunSessionId).map {
+                            RunSessionPointDto.fromEntity(it)
+                        }
+                }
+            }
+
             FeedPostDto.fromEntity(
                 post = post,
                 likeCount = likeCount,
@@ -75,6 +132,17 @@ class FeedPostService(
                 isLikedByCurrentUser = isLikedByCurrentUser,
                 linkedRouteId = linkedRouteId,
                 linkedRunSessionId = linkedRunSessionId,
+                routeDistanceM = routeDistanceM,
+                routeTitle = routeTitle,
+                startPointLat = startPointLat,
+                startPointLon = startPointLon,
+                endPointLat = endPointLat,
+                endPointLon = endPointLon,
+                routePoints = routePoints,
+                runDistanceM = runDistanceM,
+                runDurationS = runDurationS,
+                runPaceSecPerKm = runPaceSecPerKm,
+                runPoints = runPoints,
             )
         }
 

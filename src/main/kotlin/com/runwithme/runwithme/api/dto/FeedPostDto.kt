@@ -39,6 +39,30 @@ data class FeedPostDto(
     @Schema(description = "Linked run session ID from mapping table", example = "1")
     @get:JsonProperty("runSessionId")
     val linkedRunSessionId: Long? = null,
+    // Denormalized Route Fields
+    @Schema(description = "Route distance in meters", example = "5000.0")
+    val routeDistanceM: Double? = null,
+    @Schema(description = "Route title", example = "Morning Run Route")
+    val routeTitle: String? = null,
+    @Schema(description = "Start point latitude", example = "41.0082")
+    val startPointLat: Double? = null,
+    @Schema(description = "Start point longitude", example = "28.9784")
+    val startPointLon: Double? = null,
+    @Schema(description = "End point latitude", example = "41.0150")
+    val endPointLat: Double? = null,
+    @Schema(description = "End point longitude", example = "28.9850")
+    val endPointLon: Double? = null,
+    @Schema(description = "List of route points")
+    val routePoints: List<RoutePointDto>? = null,
+    // Denormalized Run Session Fields
+    @Schema(description = "Run distance in meters", example = "5000.0")
+    val runDistanceM: Double? = null,
+    @Schema(description = "Run duration in seconds", example = "1800")
+    val runDurationS: Int? = null,
+    @Schema(description = "Run pace in seconds per km", example = "360.0")
+    val runPaceSecPerKm: Double? = null,
+    @Schema(description = "List of run points")
+    val runPoints: List<RunSessionPointDto>? = null,
 ) {
     companion object {
         fun fromEntity(
@@ -48,6 +72,17 @@ data class FeedPostDto(
             isLikedByCurrentUser: Boolean? = null,
             linkedRouteId: Long? = null,
             linkedRunSessionId: Long? = null,
+            routeDistanceM: Double? = null,
+            routeTitle: String? = null,
+            startPointLat: Double? = null,
+            startPointLon: Double? = null,
+            endPointLat: Double? = null,
+            endPointLon: Double? = null,
+            routePoints: List<RoutePointDto>? = null,
+            runDistanceM: Double? = null,
+            runDurationS: Int? = null,
+            runPaceSecPerKm: Double? = null,
+            runPoints: List<RunSessionPointDto>? = null,
         ): FeedPostDto =
             FeedPostDto(
                 id = post.id!!,
@@ -62,6 +97,17 @@ data class FeedPostDto(
                 isLikedByCurrentUser = isLikedByCurrentUser,
                 linkedRouteId = linkedRouteId,
                 linkedRunSessionId = linkedRunSessionId,
+                routeDistanceM = routeDistanceM,
+                routeTitle = routeTitle,
+                startPointLat = startPointLat,
+                startPointLon = startPointLon,
+                endPointLat = endPointLat,
+                endPointLon = endPointLon,
+                routePoints = routePoints,
+                runDistanceM = runDistanceM,
+                runDurationS = runDurationS,
+                runPaceSecPerKm = runPaceSecPerKm,
+                runPoints = runPoints,
             )
     }
 }
