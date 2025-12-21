@@ -27,4 +27,6 @@ interface RunSessionRepository : JpaRepository<RunSession, Long> {
         userId: UUID,
         pageable: Pageable,
     ): Page<RunSession>
+
+    fun findAllByUserId(userId: UUID): List<RunSession>
 }

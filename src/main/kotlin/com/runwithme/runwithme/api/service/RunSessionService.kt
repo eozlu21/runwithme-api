@@ -34,6 +34,7 @@ class RunSessionService(
     private val userRepository: UserRepository,
     private val routeRepository: RouteRepository,
     private val routePointRepository: RoutePointRepository,
+    private val userStatisticsService: UserStatisticsService,
 ) {
     private val geometryFactory = GeometryFactory()
 
@@ -228,6 +229,11 @@ class RunSessionService(
         computeSessionStats(session)
 
         val savedSession = runSessionRepository.save(session)
+
+        if (savedSession.userId != null) {
+            userStatisticsService.updateStatistics(savedSession.userId!!)
+        }
+
         val allPoints = runSessionPointRepository.findByRunSessionIdOrderBySeqNoAsc(sessionId).map { RunSessionPointDto.fromEntity(it) }
         return RunSessionDto.fromEntity(savedSession, allPoints)
     }
@@ -249,11 +255,15 @@ class RunSessionService(
 
     @Transactional
     fun deleteRunSession(sessionId: Long): Boolean {
-        if (!runSessionRepository.existsById(sessionId)) {
-            return false
-        }
+        val session = runSessionRepository.findById(sessionId).orElse(null) ?: return false
+        val userId = session.userId
+
         runSessionPointRepository.deleteByRunSessionId(sessionId)
-        runSessionRepository.deleteById(sessionId)
+        runSessionRepository.delete(session)
+
+        if (userId != null) {
+            userStatisticsService.updateStatistics(userId)
+        }
         return true
     }
 
