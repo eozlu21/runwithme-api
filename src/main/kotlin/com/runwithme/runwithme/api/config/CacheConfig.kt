@@ -1,5 +1,9 @@
 package com.runwithme.runwithme.api.config
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.KotlinModule
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.CacheManager
 import org.springframework.cache.annotation.EnableCaching
@@ -46,7 +50,19 @@ class CacheConfig(
 
     @Bean
     fun cacheManager(redisConnectionFactory: RedisConnectionFactory): CacheManager {
-        val jsonSerializer = GenericJackson2JsonRedisSerializer()
+        val objectMapper =
+            ObjectMapper().apply {
+                registerModule(JavaTimeModule())
+                registerModule(KotlinModule.Builder().build())
+                activateDefaultTyping(
+                    BasicPolymorphicTypeValidator
+                        .builder()
+                        .allowIfBaseType(Any::class.java)
+                        .build(),
+                    ObjectMapper.DefaultTyping.NON_FINAL,
+                )
+            }
+        val jsonSerializer = GenericJackson2JsonRedisSerializer(objectMapper)
 
         val defaultConfig =
             RedisCacheConfiguration
