@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.security.Principal
 import java.util.UUID
 
 @RestController
@@ -110,8 +111,18 @@ class RunSessionController(
         @Parameter(description = "Number of items per page", example = "10") @RequestParam(defaultValue = "10") size: Int,
     ): ResponseEntity<PageResponse<RunSessionDto>> = ResponseEntity.ok(runSessionService.getRunSessionsByRoute(routeId, page, size))
 
-    @GetMapping("/me/active")
-    @Operation(summary = "Get current user's active sessions", description = "Retrieves all active (not ended) run sessions for the authenticated user")
+    @PostMapping("/from-route/{routeId}")
+    @Operation(summary = "Create run session from route", description = "Creates a synthetic run session from an existing route")
+    fun createRunSessionFromRoute(
+        @Parameter(description = "Route ID", example = "1") @PathVariable routeId: Long,
+        principal: Principal,
+    ): ResponseEntity<RunSessionDto> {
+        val session = runSessionService.createRunSessionFromRoute(routeId, principal.name)
+        return ResponseEntity.status(HttpStatus.CREATED).body(session)
+    }
+
+    @GetMapping("/active")
+    @Operation(summary = "Get active run sessions", description = "Retrieves active run sessions for the current user")
     @ApiResponses(
         value = [
             ApiResponse(

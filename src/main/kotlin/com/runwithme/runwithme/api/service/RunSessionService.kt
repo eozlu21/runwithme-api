@@ -9,6 +9,8 @@ import com.runwithme.runwithme.api.dto.StartRunSessionRequest
 import com.runwithme.runwithme.api.dto.UpdateRunSessionRequest
 import com.runwithme.runwithme.api.entity.RunSession
 import com.runwithme.runwithme.api.entity.RunSessionPoint
+import com.runwithme.runwithme.api.repository.RoutePointRepository
+import com.runwithme.runwithme.api.repository.RouteRepository
 import com.runwithme.runwithme.api.repository.RunSessionPointRepository
 import com.runwithme.runwithme.api.repository.RunSessionRepository
 import com.runwithme.runwithme.api.repository.UserRepository
@@ -30,6 +32,8 @@ class RunSessionService(
     private val runSessionRepository: RunSessionRepository,
     private val runSessionPointRepository: RunSessionPointRepository,
     private val userRepository: UserRepository,
+    private val routeRepository: RouteRepository,
+    private val routePointRepository: RoutePointRepository,
 ) {
     private val geometryFactory = GeometryFactory()
 
@@ -71,6 +75,65 @@ class RunSessionService(
     fun getActiveSessionsForUser(userId: UUID): List<RunSessionDto> {
         val sessions = runSessionRepository.findByUserIdAndEndedAtIsNull(userId)
         return sessions.map { RunSessionDto.fromEntity(it) }
+    }
+
+    @Transactional
+    fun createRunSessionFromRoute(
+        routeId: Long,
+        username: String,
+    ): RunSessionDto {
+        val user = userRepository.findByUsername(username).orElseThrow { RuntimeException("User not found: $username") }
+        val route = routeRepository.findById(routeId).orElseThrow { RuntimeException("Route not found: $routeId") }
+        val routePoints = routePointRepository.findByRouteIdOrderBySeqNoAsc(routeId)
+
+        val now = OffsetDateTime.now()
+        val durationS = route.estimatedDurationS ?: 3600 // Default to 1 hour if null
+        val endedAt = now.plusSeconds(durationS.toLong())
+
+        // Calculate pace
+        val distanceKm = (route.distanceM ?: 0.0) / 1000.0
+        val avgPace = if (distanceKm > 0) durationS / distanceKm else 0.0
+
+        val session =
+            RunSession(
+                userId = user.userId,
+                routeId = route.id,
+                isPublic = false, // Default to private for synthetic runs
+                startedAt = now,
+                endedAt = endedAt,
+                movingTimeS = durationS,
+                geomTrack = route.pathGeom,
+                createdAt = now,
+                totalDistanceM = route.distanceM,
+                avgPaceSecPerKm = avgPace,
+                elevationGainM = 0.0, // Could calculate, but 0 is safe for now
+            )
+
+        val savedSession = runSessionRepository.save(session)
+
+        val sessionPoints =
+            routePoints.mapIndexed { index, rp ->
+                // Distribute time linearly
+                val timeOffsetS =
+                    if (routePoints.size > 1) {
+                        (index.toDouble() / (routePoints.size - 1)) * durationS
+                    } else {
+                        0.0
+                    }
+
+                RunSessionPoint(
+                    runSessionId = savedSession.id,
+                    seqNo = rp.seqNo,
+                    pointGeom = rp.pointGeom,
+                    elevationM = rp.elevationM,
+                    recordedAt = now.plusSeconds(timeOffsetS.toLong()),
+                )
+            }
+
+        runSessionPointRepository.saveAll(sessionPoints)
+
+        val pointDtos = sessionPoints.map { RunSessionPointDto.fromEntity(it) }
+        return RunSessionDto.fromEntity(savedSession, pointDtos)
     }
 
     @Transactional
