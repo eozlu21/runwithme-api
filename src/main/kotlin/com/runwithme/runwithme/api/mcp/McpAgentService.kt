@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.UUID
 import java.util.regex.Pattern
 
 @Service
@@ -16,10 +17,10 @@ class McpAgentService(
     private val logger = LoggerFactory.getLogger(McpAgentService::class.java)
 
     // Simple orchestrator that combines routing, API call and Gemini answer.
-    fun runAgent(request: McpAgentRequest, authorizationHeader: String?): McpAgentResponse {
-        logger.info("MCP agent invoked with prompt='{}'", request.prompt)
+    fun runAgent(request: McpAgentRequest, authorizationHeader: String?, starterUserId: UUID): McpAgentResponse {
+        logger.info("MCP agent invoked with prompt='{}' starterUserId='{}'", request.prompt, starterUserId)
         val availableRoutes = promptRouter.routes()
-        val decision = geminiClient.selectRoute(request.prompt, availableRoutes)
+        val decision = geminiClient.selectRoute(request.prompt, availableRoutes, starterUserId)
         val selectedRouteName = decision.routeName?.trim()
         if (selectedRouteName.isNullOrBlank()) {
             logger.warn("Route selection missing. reason='{}'", decision.reason)
@@ -31,6 +32,7 @@ class McpAgentService(
                 llmMessage = null,
                 routeDecisionReason = decision.reason,
                 resolvedArguments = decision.arguments,
+                starterUserId = starterUserId,
                 error = decision.reason ?: "Gemini herhangi bir rota secemedi.",
             )
         }
@@ -44,6 +46,7 @@ class McpAgentService(
                     llmMessage = null,
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
+                    starterUserId = starterUserId,
                     error = "Secilen rota whitelist'te bulunamadigi icin politika reddetti.",
                 )
 
@@ -60,6 +63,7 @@ class McpAgentService(
                     llmMessage = null,
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
+                    starterUserId = starterUserId,
                     error = ex.message,
                 )
             }
@@ -67,7 +71,7 @@ class McpAgentService(
         return try {
             logger.info("Executing MCP route='{}' resolvedPath='{}'", route.name, resolvedPath)
             val apiResult = externalApiClient.fetchData(route, resolvedPath, authorizationHeader)
-            val llmText = geminiClient.generateAnswer(request.prompt, route.description, apiResult.body)
+            val llmText = geminiClient.generateAnswer(request.prompt, route.description, apiResult.body, starterUserId)
             McpAgentResponse(
                 success = true,
                 routeName = apiResult.routeName,
@@ -76,6 +80,7 @@ class McpAgentService(
                 llmMessage = llmText,
                 routeDecisionReason = decision.reason,
                 resolvedArguments = decision.arguments,
+                starterUserId = starterUserId,
                 error = null,
             )
         } catch (ex: IllegalStateException) {
@@ -88,6 +93,7 @@ class McpAgentService(
                 llmMessage = null,
                 routeDecisionReason = decision.reason,
                 resolvedArguments = decision.arguments,
+                starterUserId = starterUserId,
                 error = ex.message ?: "Ajan istegi basarisiz oldu.",
             )
         }
@@ -139,5 +145,6 @@ data class McpAgentResponse(
     val llmMessage: String?,
     val routeDecisionReason: String?,
     val resolvedArguments: Map<String, String>?,
+    val starterUserId: UUID,
     val error: String?,
 )

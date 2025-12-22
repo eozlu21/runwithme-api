@@ -9,23 +9,12 @@ import org.springframework.stereotype.Component
 class McpPromptRouter {
     private val availableRoutes =
         listOf(
+
             McpRoute(
-                name = "TodoDetay",
-                description = "JSONPlaceholder todo kaydinin detayini getirir.",
+                name = "Kullanıcı İstatistikleri", //TODO
+                description = "Kullanıcının istatistik bilgilerini getirir.",
                 method = HttpMethod.GET,
-                pathTemplate = "todos/1",
-            ),
-            McpRoute(
-                name = "PostDetay",
-                description = "JSONPlaceholder icindeki ornek post bilgisini doner.",
-                method = HttpMethod.GET,
-                pathTemplate = "posts/1",
-            ),
-            McpRoute(
-                name = "YorumListesi",
-                description = "Secilen posttaki yorumlari listeler.",
-                method = HttpMethod.GET,
-                pathTemplate = "comments?postId=1",
+                pathTemplate = "api/v1/users",
             ),
             McpRoute(
                 name = "Kullanici Ismiyle Kullanici Bilgisi",
@@ -40,6 +29,8 @@ class McpPromptRouter {
                     ),
                 ),
             ),
+
+
         )
 
     fun routes(): List<McpRoute> = availableRoutes

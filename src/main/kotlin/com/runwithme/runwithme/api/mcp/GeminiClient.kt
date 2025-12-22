@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestTemplate
+import java.util.UUID
 
 @Component
 class GeminiClient(
@@ -16,7 +17,7 @@ class GeminiClient(
     private val logger = LoggerFactory.getLogger(GeminiClient::class.java)
 
     // Asks Gemini to choose one of the allowed routes (function calling style).
-    fun selectRoute(prompt: String, routes: List<McpRoute>): GeminiRouteDecision {
+    fun selectRoute(prompt: String, routes: List<McpRoute>, starterUserId: UUID): GeminiRouteDecision {
         if (routes.isEmpty()) {
             logger.warn("Route selection skipped because whitelist is empty.")
             return GeminiRouteDecision(routeName = null, reason = "Tanimli rota olmadigi icin secim yapilamadi.", arguments = null)
@@ -40,6 +41,7 @@ class GeminiClient(
             }
         val selectionPrompt = buildString {
             appendLine("Gorev: Kullanici istegini incele ve sadece izin verilen fonksiyonlardan birini sec.")
+            appendLine("Sohbeti baslatan kullanici kimligi: $starterUserId")
             appendLine("Fonksiyon listesi:")
             appendLine(functionList)
             appendLine("Kurallar:")
@@ -61,9 +63,10 @@ class GeminiClient(
                     logger.warn("Route selection returned empty text.")
                     return GeminiRouteDecision(routeName = null, reason = "Gemini yaniti alinamadi.", arguments = null)
                 }
+        val sanitizedResponse = sanitizeJsonCandidate(responseText)
         val payload =
             try {
-                objectMapper.readValue(responseText, RouteSelectionPayload::class.java)
+                objectMapper.readValue(sanitizedResponse, RouteSelectionPayload::class.java)
             } catch (ex: Exception) {
                 logger.warn("Route selection JSON parse failed: {}", ex.message)
                 return GeminiRouteDecision(
@@ -83,7 +86,7 @@ class GeminiClient(
     }
 
     // Sends the merged prompt to Gemini and returns the readable text.
-    fun generateAnswer(prompt: String, routeDescription: String, apiBody: String): String {
+    fun generateAnswer(prompt: String, routeDescription: String, apiBody: String, starterUserId: UUID): String {
         if (properties.geminiApiKey.isBlank()) {
             logger.warn("generateAnswer skipped because MCP_GEMINI_API_KEY is blank.")
             return "Gemini API anahtari tanimli olmadigi icin yanit uretilemedi."
@@ -91,6 +94,7 @@ class GeminiClient(
 
         val combinedPrompt = buildString {
             appendLine("Kullanici istegi: $prompt")
+            appendLine("Sohbeti baslatan kullanici kimligi: $starterUserId")
             appendLine("Secilen aksiyon: $routeDescription")
             appendLine("API cevabi: $apiBody")
             append("Veriyi kisaca yorumla ve basit aksiyon oner.")
@@ -123,6 +127,21 @@ class GeminiClient(
             logger.warn("Gemini response did not contain text.")
         }
         return GeminiCallResult(text = text, error = null)
+    }
+
+    private fun sanitizeJsonCandidate(candidate: String): String {
+        var text = candidate.trim()
+        if (text.startsWith("```")) {
+            text = text.removePrefix("```")
+            if (text.startsWith("json", ignoreCase = true)) {
+                text = text.removePrefix("json")
+            }
+            text = text.trim()
+            if (text.endsWith("```")) {
+                text = text.removeSuffix("```")
+            }
+        }
+        return text.trim()
     }
 }
 
