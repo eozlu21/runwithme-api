@@ -50,6 +50,7 @@ class GeminiClient(
             appendLine("3) If a parameter is needed, fill it in `arguments` as key=value.")
             appendLine("4) Keep the explanation short and clear.")
             appendLine("5) If none of the functions apply, set routeName to \"$NO_MATCH_ROUTE\" and explain why.")
+            appendLine("6) Produce JSON without any Markdown formatting (no bold or italics).")
             appendLine("User prompt: $prompt")
         }
         logger.debug("Selecting route for prompt. promptPreview='{}'", prompt.take(120))
@@ -98,7 +99,8 @@ class GeminiClient(
             appendLine("Starter user ID: $starterUserId")
             appendLine("Selected action: $routeDescription")
             appendLine("API response: $apiBody")
-            append("Summarize the data briefly and suggest simple actions.")
+            appendLine("Summarize the data briefly. Do not propose additional action recommendations.")
+            append("Respond in plain text without Markdown formatting (no bullets, bold, or italics). New lines are allowed.")
         }
         logger.debug("Requesting Gemini answer for routeDescription='{}'", routeDescription)
         val answerResult = callGemini(combinedPrompt)
