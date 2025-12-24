@@ -34,7 +34,7 @@ class GeminiClient(
                         "parametre yok"
                     } else {
                         route.parameters.joinToString { param ->
-                            "${param.name}(required=${param.required}, ${param.description})"
+                            "${param.name}[${param.location.name.lowercase()}](required=${param.required}, ${param.description})"
                         }
                     }
                 "- ${route.name}: ${route.description} [${route.method} ${route.pathTemplate}] Params: $params"
