@@ -100,6 +100,7 @@ class GeminiClient(
             appendLine("Selected action: $routeDescription")
             appendLine("API response: $apiBody")
             appendLine("Summarize the data briefly. Do not propose additional action recommendations.")
+            appendLine("Whenever a date appears in YYYY-MM-DD format, convert it to the written form (e.g., 20 May 2025).")
             append("Respond in plain text without Markdown formatting (no bullets, bold, or italics). New lines are allowed.")
         }
         logger.debug("Requesting Gemini answer for routeDescription='{}'", routeDescription)

@@ -26,6 +26,7 @@ class McpExternalApiClient(
     ): ExternalApiResult {
         val urlToCall = resolveUrl(resolvedPath)
         val headers = HttpHeaders()
+        headers.set(properties.agentRequestHeader, "true")
         if (route.requiresAuth) {
             val token =
                 authorizationHeader?.takeIf { it.isNotBlank() }

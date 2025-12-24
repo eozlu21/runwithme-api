@@ -11,7 +11,7 @@ class McpPromptRouter {
     private val availableRoutes =
         listOf(
             McpRoute(
-                name = "User Statistics", //TODO
+                name = "User Statistics",
                 description = "Returns the authenticated user's statistics.",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/users",
