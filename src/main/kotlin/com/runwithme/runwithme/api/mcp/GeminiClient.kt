@@ -20,18 +20,18 @@ class GeminiClient(
     fun selectRoute(prompt: String, routes: List<McpRoute>, starterUserId: UUID): GeminiRouteDecision {
         if (routes.isEmpty()) {
             logger.warn("Route selection skipped because whitelist is empty.")
-            return GeminiRouteDecision(routeName = null, reason = "Tanimli rota olmadigi icin secim yapilamadi.", arguments = null)
+            return GeminiRouteDecision(routeName = null, reason = "No route could be selected because the allow-list is empty.", arguments = null)
         }
         if (properties.geminiApiKey.isBlank()) {
             logger.warn("Route selection skipped because MCP_GEMINI_API_KEY is blank.")
-            return GeminiRouteDecision(routeName = null, reason = "Gemini API anahtari tanimli olmadigi icin rota secilemedi.", arguments = null)
+            return GeminiRouteDecision(routeName = null, reason = "No route could be selected because MCP_GEMINI_API_KEY is blank.", arguments = null)
         }
 
         val functionList =
             routes.joinToString(separator = "\n") { route ->
                 val params =
                     if (route.parameters.isEmpty()) {
-                        "parametre yok"
+                        "no parameters"
                     } else {
                         route.parameters.joinToString { param ->
                             "${param.name}[${param.location.name.lowercase()}](required=${param.required}, ${param.description})"
@@ -40,16 +40,16 @@ class GeminiClient(
                 "- ${route.name}: ${route.description} [${route.method} ${route.pathTemplate}] Params: $params"
             }
         val selectionPrompt = buildString {
-            appendLine("Gorev: Kullanici istegini incele ve sadece izin verilen fonksiyonlardan birini sec.")
-            appendLine("Sohbeti baslatan kullanici kimligi: $starterUserId")
-            appendLine("Fonksiyon listesi:")
+            appendLine("Task: Review the user request and choose exactly one allowed function.")
+            appendLine("Starter user ID: $starterUserId")
+            appendLine("Function list:")
             appendLine(functionList)
-            appendLine("Kurallar:")
-            appendLine("1) Sadece listede yer alan routeName degerlerini sec.")
-            appendLine("2) Cikis formati JSON olsun: {\"routeName\": \"...\", \"reason\": \"...\", \"arguments\": {\"param\": \"deger\"}}")
-            appendLine("3) Parametre gerekiyorsa `arguments` icinde anahtar=deger olarak doldur.")
-            appendLine("4) Aciklama kisa ve anlasilir olsun.")
-            appendLine("Kullanici promptu: $prompt")
+            appendLine("Rules:")
+            appendLine("1) Only choose routeName values from the list.")
+            appendLine("2) Output must be JSON: {\"routeName\": \"...\", \"reason\": \"...\", \"arguments\": {\"param\": \"value\"}}")
+            appendLine("3) If a parameter is needed, fill it in `arguments` as key=value.")
+            appendLine("4) Keep the explanation short and clear.")
+            appendLine("User prompt: $prompt")
         }
         logger.debug("Selecting route for prompt. promptPreview='{}'", prompt.take(120))
         val selectionResult = callGemini(selectionPrompt)
@@ -61,7 +61,7 @@ class GeminiClient(
             selectionResult.text
                 ?: run {
                     logger.warn("Route selection returned empty text.")
-                    return GeminiRouteDecision(routeName = null, reason = "Gemini yaniti alinamadi.", arguments = null)
+                    return GeminiRouteDecision(routeName = null, reason = "Gemini response could not be read.", arguments = null)
                 }
         val sanitizedResponse = sanitizeJsonCandidate(responseText)
         val payload =
@@ -71,11 +71,11 @@ class GeminiClient(
                 logger.warn("Route selection JSON parse failed: {}", ex.message)
                 return GeminiRouteDecision(
                     routeName = null,
-                    reason = "Rota cevabi JSON formatinda degil: ${ex.message}. Model cevabi: $responseText",
+                    reason = "Route selection was not valid JSON: ${ex.message}. Model response: $responseText",
                     arguments = null,
                 )
             }
-        val reason = payload.reason?.takeIf { it.isNotBlank() } ?: "Model sebep belirtmedi."
+        val reason = payload.reason?.takeIf { it.isNotBlank() } ?: "Model did not provide a reason."
         logger.info(
             "Route selected by Gemini. route='{}', reason='{}', arguments={}",
             payload.routeName,
@@ -89,19 +89,19 @@ class GeminiClient(
     fun generateAnswer(prompt: String, routeDescription: String, apiBody: String, starterUserId: UUID): String {
         if (properties.geminiApiKey.isBlank()) {
             logger.warn("generateAnswer skipped because MCP_GEMINI_API_KEY is blank.")
-            return "Gemini API anahtari tanimli olmadigi icin yanit uretilemedi."
+            return "Response could not be generated because MCP_GEMINI_API_KEY is blank."
         }
 
         val combinedPrompt = buildString {
-            appendLine("Kullanici istegi: $prompt")
-            appendLine("Sohbeti baslatan kullanici kimligi: $starterUserId")
-            appendLine("Secilen aksiyon: $routeDescription")
-            appendLine("API cevabi: $apiBody")
-            append("Veriyi kisaca yorumla ve basit aksiyon oner.")
+            appendLine("User request: $prompt")
+            appendLine("Starter user ID: $starterUserId")
+            appendLine("Selected action: $routeDescription")
+            appendLine("API response: $apiBody")
+            append("Summarize the data briefly and suggest simple actions.")
         }
         logger.debug("Requesting Gemini answer for routeDescription='{}'", routeDescription)
         val answerResult = callGemini(combinedPrompt)
-        return answerResult.text ?: answerResult.error ?: "Gemini yaniti alinamadi."
+        return answerResult.text ?: answerResult.error ?: "Gemini response could not be read."
     }
 
     private fun callGemini(prompt: String): GeminiCallResult {
@@ -119,7 +119,7 @@ class GeminiClient(
                 logger.error("Gemini HTTP call failed: {}", ex.message)
                 return GeminiCallResult(
                     text = null,
-                    error = "Gemini istegi basarisiz oldu: ${ex.message}",
+                    error = "Gemini request failed: ${ex.message}",
                 )
             }
         val text = response?.firstText()

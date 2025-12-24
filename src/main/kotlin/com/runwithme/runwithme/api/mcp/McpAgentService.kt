@@ -36,7 +36,7 @@ class McpAgentService(
                 routeDecisionReason = decision.reason,
                 resolvedArguments = decision.arguments,
                 starterUserId = starterUserId,
-                error = decision.reason ?: "Gemini herhangi bir rota secemedi.",
+                error = decision.reason ?: "Gemini could not select any route.",
             )
         }
         val route =
@@ -50,7 +50,7 @@ class McpAgentService(
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
                     starterUserId = starterUserId,
-                    error = "Secilen rota whitelist'te bulunamadigi icin politika reddetti.",
+                    error = "Policy rejected because the selected route was not on the allow-list.",
                 )
 
         val resolvedRoute =
@@ -112,7 +112,7 @@ class McpAgentService(
                 customMessage ?: fallbackNotFound
             val errorMessage =
                 finalMessage
-                    ?: "`${route.name}` cagrisi basarisiz oldu: HTTP ${ex.statusCode ?: "?"}"
+                    ?: "`${route.name}` call failed: HTTP ${ex.statusCode ?: "?"}"
             McpAgentResponse(
                 success = false,
                 routeName = route.name,
@@ -135,7 +135,7 @@ class McpAgentService(
                 routeDecisionReason = decision.reason,
                 resolvedArguments = decision.arguments,
                 starterUserId = starterUserId,
-                error = ex.message ?: "Ajan istegi basarisiz oldu.",
+                error = ex.message ?: "Agent request failed.",
             )
         }
     }
@@ -151,7 +151,7 @@ class McpAgentService(
                     ?.get(parameter.name)
                     ?.takeIf { it.isNotBlank() }
                     ?: if (parameter.required) {
-                        throw IllegalStateException("`${route.name}` icin `${parameter.name}` parametresi gerekli.")
+                        throw IllegalStateException("`${route.name}` requires parameter `${parameter.name}`.")
                     } else {
                         null
                     }
@@ -176,7 +176,7 @@ class McpAgentService(
         }
         val matcher = PLACEHOLDER_PATTERN.matcher(path)
         if (matcher.find()) {
-            throw IllegalStateException("`${route.name}` icin `${matcher.group(1)}` parametresi saglanmadigi icin rota olusturulamadi.")
+            throw IllegalStateException("`${route.name}` could not be resolved because `${matcher.group(1)}` was missing.")
         }
         if (queryParameters.isNotEmpty()) {
             val queryString =
@@ -195,7 +195,7 @@ class McpAgentService(
                 try {
                     objectMapper.writeValueAsString(bodyParameters)
                 } catch (ex: Exception) {
-                    throw IllegalStateException("`${route.name}` icin istek govdesi olusturulamadi: ${ex.message}", ex)
+                    throw IllegalStateException("Request body for `${route.name}` could not be created: ${ex.message}", ex)
                 }
             }
         logger.debug("Resolved path='{}' bodyPresent={} for route='{}'", path, body != null, route.name)
@@ -234,7 +234,7 @@ private data class ResolvedRoute(
 )
 
 data class McpAgentRequest(
-    @field:NotBlank(message = "Prompt bos olamaz")
+    @field:NotBlank(message = "Prompt must not be blank")
     val prompt: String,
 )
 

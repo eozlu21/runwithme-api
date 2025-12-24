@@ -29,7 +29,7 @@ class McpExternalApiClient(
         if (route.requiresAuth) {
             val token =
                 authorizationHeader?.takeIf { it.isNotBlank() }
-                    ?: throw IllegalStateException("`${route.name}` cagrisini calistirmak icin kullanici yetkisi gerekiyor.")
+                    ?: throw IllegalStateException("`${route.name}` requires a user Authorization header.")
             headers.set(HttpHeaders.AUTHORIZATION, token)
         }
         if (!requestBody.isNullOrEmpty()) {
@@ -56,7 +56,7 @@ class McpExternalApiClient(
                 )
             } catch (ex: RestClientException) {
                 logger.error("External API call failed for route='{}': {}", route.name, ex.message)
-                throw IllegalStateException("`${route.name}` cagrisi basarisiz oldu: ${ex.message}", ex)
+                throw IllegalStateException("`${route.name}` call failed: ${ex.message}", ex)
             }
         logger.debug("External API response received for route='{}' ({} chars)", route.name, body.length)
         return ExternalApiResult(route.name, urlToCall, body)
