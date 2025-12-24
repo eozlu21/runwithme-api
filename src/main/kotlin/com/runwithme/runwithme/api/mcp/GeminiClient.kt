@@ -17,7 +17,11 @@ class GeminiClient(
     private val logger = LoggerFactory.getLogger(GeminiClient::class.java)
 
     // Asks Gemini to choose one of the allowed routes (function calling style).
-    fun selectRoute(prompt: String, routes: List<McpRoute>, starterUserId: UUID): GeminiRouteDecision {
+    fun selectRoute(
+        prompt: String,
+        routes: List<McpRoute>,
+        starterUserId: UUID,
+    ): GeminiRouteDecision {
         if (routes.isEmpty()) {
             logger.warn("Route selection skipped because whitelist is empty.")
             return GeminiRouteDecision(routeName = null, reason = "No route could be selected because the allow-list is empty.", arguments = null)
@@ -39,20 +43,21 @@ class GeminiClient(
                     }
                 "- ${route.name}: ${route.description} [${route.method} ${route.pathTemplate}] Params: $params"
             }
-        val selectionPrompt = buildString {
-            appendLine("Task: Review the user request and choose exactly one allowed function.")
-            appendLine("Starter user ID: $starterUserId")
-            appendLine("Function list:")
-            appendLine(functionList)
-            appendLine("Rules:")
-            appendLine("1) Only choose routeName values from the list.")
-            appendLine("2) Output must be JSON: {\"routeName\": \"...\", \"reason\": \"...\", \"arguments\": {\"param\": \"value\"}}")
-            appendLine("3) If a parameter is needed, fill it in `arguments` as key=value.")
-            appendLine("4) Keep the explanation short and clear.")
-            appendLine("5) If none of the functions apply, set routeName to \"$NO_MATCH_ROUTE\" and explain why.")
-            appendLine("6) Produce JSON without any Markdown formatting (no bold or italics).")
-            appendLine("User prompt: $prompt")
-        }
+        val selectionPrompt =
+            buildString {
+                appendLine("Task: Review the user request and choose exactly one allowed function.")
+                appendLine("Starter user ID: $starterUserId")
+                appendLine("Function list:")
+                appendLine(functionList)
+                appendLine("Rules:")
+                appendLine("1) Only choose routeName values from the list.")
+                appendLine("2) Output must be JSON: {\"routeName\": \"...\", \"reason\": \"...\", \"arguments\": {\"param\": \"value\"}}")
+                appendLine("3) If a parameter is needed, fill it in `arguments` as key=value.")
+                appendLine("4) Keep the explanation short and clear.")
+                appendLine("5) If none of the functions apply, set routeName to \"$NO_MATCH_ROUTE\" and explain why.")
+                appendLine("6) Produce JSON without any Markdown formatting (no bold or italics).")
+                appendLine("User prompt: $prompt")
+            }
         logger.debug("Selecting route for prompt. promptPreview='{}'", prompt.take(120))
         val selectionResult = callGemini(selectionPrompt)
         if (selectionResult.error != null) {
@@ -88,32 +93,40 @@ class GeminiClient(
     }
 
     // Sends the merged prompt to Gemini and returns the readable text.
-    fun generateAnswer(prompt: String, routeDescription: String, apiBody: String, starterUserId: UUID): String {
+    fun generateAnswer(
+        prompt: String,
+        routeDescription: String,
+        apiBody: String,
+        starterUserId: UUID,
+    ): String {
         if (properties.geminiApiKey.isBlank()) {
             logger.warn("generateAnswer skipped because MCP_GEMINI_API_KEY is blank.")
             return "Response could not be generated because MCP_GEMINI_API_KEY is blank."
         }
 
-        val combinedPrompt = buildString {
-            appendLine("User request: $prompt")
-            appendLine("Starter user ID: $starterUserId")
-            appendLine("Selected action: $routeDescription")
-            appendLine("API response: $apiBody")
-            appendLine("Summarize the data briefly. Do not propose additional action recommendations.")
-            appendLine("Whenever a date appears in YYYY-MM-DD format, convert it to the written form (e.g., 20 May 2025).")
-            append("Respond in plain text without Markdown formatting (no bullets, bold, or italics). New lines are allowed.")
-        }
+        val combinedPrompt =
+            buildString {
+                appendLine("User request: $prompt")
+                appendLine("Starter user ID: $starterUserId")
+                appendLine("Selected action: $routeDescription")
+                appendLine("API response: $apiBody")
+                appendLine("Summarize the data briefly. Do not propose additional action recommendations.")
+                appendLine("Whenever a date appears in YYYY-MM-DD format, convert it to the written form (e.g., 20 May 2025).")
+                append("Respond in plain text without Markdown formatting (no bullets, bold, or italics). New lines are allowed.")
+            }
         logger.debug("Requesting Gemini answer for routeDescription='{}'", routeDescription)
         val answerResult = callGemini(combinedPrompt)
         return answerResult.text ?: answerResult.error ?: "Gemini response could not be read."
     }
 
     private fun callGemini(prompt: String): GeminiCallResult {
-        val request = GeminiRequest(
-            contents = listOf(
-                GeminiContent(parts = listOf(GeminiTextPart(text = prompt))),
-            ),
-        )
+        val request =
+            GeminiRequest(
+                contents =
+                    listOf(
+                        GeminiContent(parts = listOf(GeminiTextPart(text = prompt))),
+                    ),
+            )
         val url =
             "https://generativelanguage.googleapis.com/v1beta/models/${properties.geminiModel}:generateContent?key=${properties.geminiApiKey}"
         val response =

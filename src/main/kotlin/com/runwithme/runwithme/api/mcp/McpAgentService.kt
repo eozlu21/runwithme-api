@@ -20,7 +20,11 @@ class McpAgentService(
     private val objectMapper = jacksonObjectMapper()
 
     // Simple orchestrator that combines routing, API call and Gemini answer.
-    fun runAgent(request: McpAgentRequest, authorizationHeader: String?, starterUserId: UUID): McpAgentResponse {
+    fun runAgent(
+        request: McpAgentRequest,
+        authorizationHeader: String?,
+        starterUserId: UUID,
+    ): McpAgentResponse {
         logger.info("MCP agent invoked with prompt='{}' starterUserId='{}'", request.prompt, starterUserId)
         val availableRoutes = promptRouter.routes()
         val decision = geminiClient.selectRoute(request.prompt, availableRoutes, starterUserId)
@@ -154,7 +158,10 @@ class McpAgentService(
         }
     }
 
-    private fun resolveRoute(route: McpRoute, arguments: Map<String, String>?): ResolvedRoute {
+    private fun resolveRoute(
+        route: McpRoute,
+        arguments: Map<String, String>?,
+    ): ResolvedRoute {
         var path = route.pathTemplate
         val queryParameters = mutableListOf<Pair<String, String>>()
         val bodyParameters = linkedMapOf<String, String>()
@@ -226,7 +233,10 @@ class McpAgentService(
         return renderTemplate(template, arguments)
     }
 
-    private fun renderTemplate(template: String, arguments: Map<String, String>?): String {
+    private fun renderTemplate(
+        template: String,
+        arguments: Map<String, String>?,
+    ): String {
         if (arguments.isNullOrEmpty()) {
             return template
         }

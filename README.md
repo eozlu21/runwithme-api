@@ -105,56 +105,56 @@ Use the helper script:
 
 ## MCP Agent
 
-`com.runwithme.runwithme.api.mcp` klasörü, çağıran kullanıcının yetkileriyle çalışan ve JSONPlaceholder + Gemini üstünde örnek bir akış oluşturan general-purpose MCP ajanını içerir. Çalışma sırası:
+The `com.runwithme.runwithme.api.mcp` folder contains a general-purpose MCP agent that runs with the calling user's permissions and creates an example flow on JSONPlaceholder + Gemini. The workflow is as follows:
 
-1. `McpPromptRouter` yalnızca izin verdiğiniz endpoint/fonksiyon listesini (HTTP method, path, açıklama) tutar.
-2. `GeminiClient.selectRoute` bu listeyi LLM'e function-calling formatında verip, kullanıcının prompt'una göre hangi rota seçileceğini modelden ister.
-3. `McpPromptRouter` seçilen route adını whitelist'te doğrular; whitelist dışı seçimler otomatik reddedilir (policy enforcement).
-4. `McpExternalApiClient` doğrulanan rotayı, çağıran kişinin `Authorization` başlığını aynen forward ederek çağırır.
-5. `GeminiClient.generateAnswer` prompt + API cevabını `gemini-1.5-flash` modeline gönderir ve kısa aksiyon önerisi üretir.
+1. `McpPromptRouter` maintains only the list of endpoints/functions you allow (HTTP method, path, description).
+2. `GeminiClient.selectRoute` provides this list to the LLM in function-calling format and asks the model to select which route based on the user's prompt.
+3. `McpPromptRouter` validates the selected route name against the whitelist; selections outside the whitelist are automatically rejected (policy enforcement).
+4. `McpExternalApiClient` calls the validated route, forwarding the caller's `Authorization` header as-is.
+5. `GeminiClient.generateAnswer` sends the prompt + API response to the `gemini-1.5-flash` model and generates a short action suggestion.
 
-### Yapılandırma
+### Configuration
 
-`.env` dosyanıza aşağıdaki değerleri ekleyin (örnekler `.env.example` içinde de var):
+Add the following values to your `.env` file (examples are also in `.env.example`):
 ```
 MCP_EXTERNAL_API_BASE_URL=https://jsonplaceholder.typicode.com
 MCP_GEMINI_MODEL=gemini-1.5-flash
 MCP_GEMINI_API_KEY=YOUR_API_KEY
 ```
-`MCP_EXTERNAL_API_BASE_URL` zincirdeki tüm rotalar için temel URL'dir; varsayılan rotalar JSONPlaceholder'ı hedefler. Function-calling adımı da Gemini'ye bağlı olduğu için `MCP_GEMINI_API_KEY` boş bırakılırsa rota seçimi yapılamaz ve ajan `success=false` döner.
+`MCP_EXTERNAL_API_BASE_URL` is the base URL for all routes in the chain; default routes target JSONPlaceholder. Since the function-calling step also depends on Gemini, if `MCP_GEMINI_API_KEY` is left empty, route selection cannot be performed and the agent returns `success=false`.
 
-### Kullanım
+### Usage
 
-Tüm `/api/v1/mcp/**` uç noktaları JWT ister. Uygulamayı çalıştırdıktan sonra şu isteği deneyin:
+All `/api/v1/mcp/**` endpoints require JWT. After running the application, try this request:
 ```bash
 curl -X POST http://localhost:8080/api/v1/mcp/run \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
-    "prompt": "Todo kaydini goster ve yorumlar hakkinda ipucu ver"
+    "prompt": "Show the todo record and give tips about comments"
   }'
 ```
 
-Ajan prompt'u Gemini üzerinden analiz eder ve seçimi `routeDecisionReason` alanında açıklar. Yanıtta `success`, `routeName`, `requestedUrl`, `apiBody`, `llmMessage`, `routeDecisionReason`, `resolvedArguments`, `starterUserId`, `error` alanları bulunur. Backend sohbeti başlatan kullanıcının kimliğini otomatik olarak `starterUserId` şeklinde prompt'a ekler; böylece kullanıcı “profilim” gibi ifadeler kullandığında LLM bu kimliği kullanarak doğru rotayı seçebilir. Model listedeki rotalardan birini seçemezse ya da whitelist doğrulamasını geçemezse `success=false` ve `error` mesajı görürsünüz; hiçbir zaman whitelist dışındaki endpoint'ler çağrılmaz.
+The agent analyzes the prompt via Gemini and explains the selection in the `routeDecisionReason` field. The response includes `success`, `routeName`, `requestedUrl`, `apiBody`, `llmMessage`, `routeDecisionReason`, `resolvedArguments`, `starterUserId`, and `error` fields. The backend automatically adds the identity of the user who started the conversation as `starterUserId` to the prompt; this way, when the user uses expressions like "my profile", the LLM can use this identity to select the correct route. If the model cannot select one of the routes from the list or fails whitelist validation, you will see `success=false` and an `error` message; endpoints outside the whitelist are never called.
 
-Varsayılan fonksiyon listesini `McpPromptRouter` sınıfında bulabilir, yeni rotalar ekleyebilir ya da açıklamaları güncelleyebilirsiniz. Parametreli endpointler için `pathTemplate` alanında placeholder (ör. `api/v1/users/username/{username}`) tanımlayıp `parameters` listesine `username` gibi anahtarları ekleyebilirsiniz. Gemini'ye gönderilen function-calling prompt, bu parametreleri JSON içindeki `arguments` alanında döndürmesini ister. Backend, gelen `arguments` değerlerini URL encode ederek template içinde değiştirir; eksik parametre varsa politika gereği çağrı yapılmaz.
+You can find the default function list in the `McpPromptRouter` class, add new routes, or update descriptions. For parameterized endpoints, you can define a placeholder in the `pathTemplate` field (e.g., `api/v1/users/username/{username}`) and add keys like `username` to the `parameters` list. The function-calling prompt sent to Gemini asks it to return these parameters in the `arguments` field within JSON. The backend URL-encodes the incoming `arguments` values and substitutes them in the template; if any parameter is missing, the call is not made per policy.
 
-Örnek: kullanıcı ismine göre bilgi çekmek için aşağıdaki prompt'u yollayabilirsiniz:
+Example: to fetch information by username, you can send the following prompt:
 ```bash
 curl -X POST http://localhost:8080/api/v1/mcp/run \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
-    "prompt": "minaaa kullanicisinin profilini getir"
+    "prompt": "Get the profile of user minaaa"
   }'
 ```
-LLM `Kullanici Ismiyle Kullanici Bilgisi` rotasını seçer, `arguments.username=minaaa` olarak döner ve sonuç `requestedUrl` alanında `.../api/v1/users/username/minaaa` şeklinde görünür.
+The LLM selects the `User Info by Username` route, returns `arguments.username=minaaa`, and the result appears as `.../api/v1/users/username/minaaa` in the `requestedUrl` field.
 
-### Test Etme
+### Testing
 
-1. `.env` içindeki MCP değişkenlerini ve JWT ayarlarınızı doldurun, ardından uygulamayı JWT ile giriş yapabileceğiniz şekilde çalıştırın.
-2. `./gradlew clean test` komutu ile birim testleri ve format kontrollerini çalıştırın (JDK 17+ gerekir).
-3. MCP ajanını manuel doğrulamak için yetkili bir kullanıcı token'ı üreterek yukarıdaki `curl` komutunu çalıştırın. `success=false` durumları için hata mesajının beklediğiniz senaryolarla eşleştiğini kontrol edin.
+1. Fill in the MCP variables and JWT settings in `.env`, then run the application so you can login with JWT.
+2. Run unit tests and format checks with `./gradlew clean test` command (JDK 17+ required).
+3. To manually validate the MCP agent, generate an authorized user token and run the `curl` command above. For `success=false` cases, check that the error message matches the scenarios you expect.
 
 ## CI
 

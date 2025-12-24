@@ -24,7 +24,10 @@ class McpResponseFilterAdvice(
     private val logger = LoggerFactory.getLogger(McpResponseFilterAdvice::class.java)
 
     private val redactedFieldNames: Set<String>
-        get() = properties.responseFilter.redactedFields.map { it.lowercase() }.toSet()
+        get() =
+            properties.responseFilter.redactedFields
+                .map { it.lowercase() }
+                .toSet()
 
     override fun supports(
         returnType: MethodParameter,
@@ -58,7 +61,10 @@ class McpResponseFilterAdvice(
         }
     }
 
-    private fun shouldSanitize(request: ServerHttpRequest, mediaType: MediaType): Boolean {
+    private fun shouldSanitize(
+        request: ServerHttpRequest,
+        mediaType: MediaType,
+    ): Boolean {
         if (!isJsonMediaType(mediaType)) {
             return false
         }

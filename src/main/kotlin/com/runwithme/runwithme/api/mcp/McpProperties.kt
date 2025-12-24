@@ -12,6 +12,6 @@ data class McpProperties(
 ) {
     data class ResponseFilterProperties(
         val enabled: Boolean = true,
-        val redactedFields: Set<String> = setOf("createdAt", "userId", "created at","email", "emailVerified", "receiverId", "requestId"),
+        val redactedFields: Set<String> = setOf("createdAt", "userId", "created at", "email", "emailVerified", "receiverId", "requestId"),
     )
 }
