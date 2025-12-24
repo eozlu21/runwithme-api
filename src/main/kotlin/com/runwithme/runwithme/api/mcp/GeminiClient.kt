@@ -49,6 +49,7 @@ class GeminiClient(
             appendLine("2) Output must be JSON: {\"routeName\": \"...\", \"reason\": \"...\", \"arguments\": {\"param\": \"value\"}}")
             appendLine("3) If a parameter is needed, fill it in `arguments` as key=value.")
             appendLine("4) Keep the explanation short and clear.")
+            appendLine("5) If none of the functions apply, set routeName to \"$NO_MATCH_ROUTE\" and explain why.")
             appendLine("User prompt: $prompt")
         }
         logger.debug("Selecting route for prompt. promptPreview='{}'", prompt.take(120))
@@ -142,6 +143,10 @@ class GeminiClient(
             }
         }
         return text.trim()
+    }
+
+    companion object {
+        const val NO_MATCH_ROUTE = "__NO_MATCH__"
     }
 }
 

@@ -39,6 +39,20 @@ class McpAgentService(
                 error = decision.reason ?: "Gemini could not select any route.",
             )
         }
+        if (selectedRouteName.equals(GeminiClient.NO_MATCH_ROUTE, ignoreCase = true)) {
+            val friendlyMessage = friendlyRouteSuggestion(availableRoutes)
+            return McpAgentResponse(
+                success = false,
+                routeName = null,
+                requestedUrl = null,
+                apiBody = null,
+                llmMessage = friendlyMessage,
+                routeDecisionReason = decision.reason,
+                resolvedArguments = decision.arguments,
+                starterUserId = starterUserId,
+                error = friendlyMessage,
+            )
+        }
         val route =
             promptRouter.routeByName(selectedRouteName)
                 ?: return McpAgentResponse(
@@ -223,8 +237,38 @@ class McpAgentService(
         return rendered
     }
 
+    private fun friendlyRouteSuggestion(routes: List<McpRoute>): String {
+        val suggestionList =
+            routes
+                .take(5)
+                .joinToString(", ") { friendlyRouteLabel(it) }
+        return if (suggestionList.isBlank()) {
+            "Sorry, I couldn't match your request to any action I can take."
+        } else {
+            "Sorry, I couldn't match your request to any action I can take. I can help you with $suggestionList."
+        }
+    }
+
+    private fun friendlyRouteLabel(route: McpRoute): String {
+        FRIENDLY_ROUTE_LABELS[route.name]?.let { return it }
+        val cleanedDescription = route.description.removeSuffix(".").replaceFirstChar { it.lowercaseChar() }
+        return cleanedDescription
+    }
+
     companion object {
         private val PLACEHOLDER_PATTERN = Pattern.compile("\\{([^}]+)}")
+        private val FRIENDLY_ROUTE_LABELS =
+            mapOf(
+                "User Statistics" to "your statistics",
+                "Get User By Username" to "finding users by username",
+                "Send Friend Request" to "sending friend requests",
+                "Received Friend Requests" to "reviewing received friend requests",
+                "Sent Friend Requests" to "tracking sent friend requests",
+                "Friend Suggestions" to "discovering suggested friends",
+                "Friend Stats" to "friendship stats and pending requests",
+                "Specific User Friends" to "viewing another user's friends (if permitted)",
+                "My Survey Responses" to "your survey responses",
+            )
     }
 }
 
