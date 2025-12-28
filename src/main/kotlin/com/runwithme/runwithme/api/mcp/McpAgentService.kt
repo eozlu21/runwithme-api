@@ -1,12 +1,18 @@
 package com.runwithme.runwithme.api.mcp
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.runwithme.runwithme.api.dto.CreateMessageRequest
+import com.runwithme.runwithme.api.entity.Message
+import com.runwithme.runwithme.api.repository.MessageRepository
+import com.runwithme.runwithme.api.service.MessageService
 import jakarta.validation.constraints.NotBlank
-import org.slf4j.LoggerFactory
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.regex.Pattern
 
@@ -15,78 +21,119 @@ class McpAgentService(
     private val externalApiClient: McpExternalApiClient,
     private val geminiClient: GeminiClient,
     private val promptRouter: McpPromptRouter,
+    private val messageService: MessageService,
+    private val messageRepository: MessageRepository,
+    private val properties: McpProperties,
 ) {
-    private val logger = LoggerFactory.getLogger(McpAgentService::class.java)
     private val objectMapper = jacksonObjectMapper()
 
     // Simple orchestrator that combines routing, API call and Gemini answer.
-    fun runAgent(request: McpAgentRequest, authorizationHeader: String?, starterUserId: UUID): McpAgentResponse {
-        logger.info("MCP agent invoked with prompt='{}' starterUserId='{}'", request.prompt, starterUserId)
+    fun runAgent(
+        request: McpAgentRequest,
+        authorizationHeader: String?,
+        starterUserId: UUID,
+        starterUsername: String,
+    ): McpAgentResponse {
+        val agentIdentity = resolveAgentIdentity()
+        val priorHistory =
+            if (request.resetHistory) {
+                recordHistoryReset(starterUserId, agentIdentity)
+                emptyList()
+            } else {
+                loadChatHistory(starterUserId, agentIdentity)
+            }
+        recordChatMessage(
+            senderUsername = starterUsername,
+            recipientId = agentIdentity.userId,
+            content = request.prompt,
+        )
         val availableRoutes = promptRouter.routes()
-        val decision = geminiClient.selectRoute(request.prompt, availableRoutes, starterUserId)
+        val decision =
+            geminiClient.selectRoute(
+                request.prompt,
+                availableRoutes,
+                starterUserId,
+                priorHistory,
+            )
+        val historyWithCurrentUser =
+            priorHistory + McpConversationTurn(McpConversationRole.USER, request.prompt)
         val selectedRouteName = decision.routeName?.trim()
         if (selectedRouteName.isNullOrBlank()) {
-            logger.warn("Route selection missing. reason='{}'", decision.reason)
-            return McpAgentResponse(
-                success = false,
-                routeName = null,
-                requestedUrl = null,
-                apiBody = null,
-                llmMessage = null,
-                routeDecisionReason = decision.reason,
-                resolvedArguments = decision.arguments,
-                starterUserId = starterUserId,
-                error = decision.reason ?: "Gemini could not select any route.",
-            )
-        }
-        if (selectedRouteName.equals(GeminiClient.NO_MATCH_ROUTE, ignoreCase = true)) {
-            val friendlyMessage = friendlyRouteSuggestion(availableRoutes)
-            return McpAgentResponse(
-                success = false,
-                routeName = null,
-                requestedUrl = null,
-                apiBody = null,
-                llmMessage = friendlyMessage,
-                routeDecisionReason = decision.reason,
-                resolvedArguments = decision.arguments,
-                starterUserId = starterUserId,
-                error = friendlyMessage,
-            )
-        }
-        val route =
-            promptRouter.routeByName(selectedRouteName)
-                ?: return McpAgentResponse(
+            return respondWithAgentMessage(
+                McpAgentResponse(
                     success = false,
-                    routeName = selectedRouteName,
+                    routeName = null,
                     requestedUrl = null,
                     apiBody = null,
                     llmMessage = null,
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
                     starterUserId = starterUserId,
-                    error = "Policy rejected because the selected route was not on the allow-list.",
+                    error = decision.reason ?: "Gemini could not select any route.",
+                ),
+                starterUserId,
+                agentIdentity,
+            )
+        }
+        if (selectedRouteName.equals(GeminiClient.NO_MATCH_ROUTE, ignoreCase = true)) {
+            val reason = decision.reason ?: "I couldn't match that request to any action I can take."
+            return respondWithAgentMessage(
+                McpAgentResponse(
+                    success = false,
+                    routeName = null,
+                    requestedUrl = null,
+                    apiBody = null,
+                    llmMessage = null,
+                    routeDecisionReason = decision.reason,
+                    resolvedArguments = decision.arguments,
+                    starterUserId = starterUserId,
+                    error = reason,
+                ),
+                starterUserId,
+                agentIdentity,
+                persistResponse = false,
+            )
+        }
+        val route =
+            promptRouter.routeByName(selectedRouteName)
+                ?: return respondWithAgentMessage(
+                    McpAgentResponse(
+                        success = false,
+                        routeName = selectedRouteName,
+                        requestedUrl = null,
+                        apiBody = null,
+                        llmMessage = null,
+                        routeDecisionReason = decision.reason,
+                        resolvedArguments = decision.arguments,
+                        starterUserId = starterUserId,
+                        error = "Policy rejected because the selected route was not on the allow-list.",
+                    ),
+                    starterUserId,
+                    agentIdentity,
                 )
 
         val resolvedRoute =
             try {
                 resolveRoute(route, decision.arguments)
             } catch (ex: IllegalStateException) {
-                logger.warn("Path resolution failed for route='{}': {}", route.name, ex.message)
-                return McpAgentResponse(
+            return respondWithAgentMessage(
+                McpAgentResponse(
                     success = false,
-                    routeName = route.name,
-                    requestedUrl = null,
-                    apiBody = null,
-                    llmMessage = null,
-                    routeDecisionReason = decision.reason,
-                    resolvedArguments = decision.arguments,
-                    starterUserId = starterUserId,
-                    error = ex.message,
+                        routeName = route.name,
+                        requestedUrl = null,
+                        apiBody = null,
+                        llmMessage = null,
+                        routeDecisionReason = decision.reason,
+                        resolvedArguments = decision.arguments,
+                        starterUserId = starterUserId,
+                        error = ex.message,
+                    ),
+                    starterUserId,
+                    agentIdentity,
                 )
             }
 
         return try {
-            logger.info("Executing MCP route='{}' resolvedPath='{}'", route.name, resolvedRoute.path)
             val apiResult =
                 externalApiClient.fetchData(
                     route = route,
@@ -94,25 +141,30 @@ class McpAgentService(
                     authorizationHeader = authorizationHeader,
                     requestBody = resolvedRoute.body,
                 )
-            val llmText = geminiClient.generateAnswer(request.prompt, route.description, apiResult.body, starterUserId)
-            McpAgentResponse(
-                success = true,
-                routeName = apiResult.routeName,
-                requestedUrl = apiResult.url,
-                apiBody = apiResult.body,
-                llmMessage = llmText,
-                routeDecisionReason = decision.reason,
-                resolvedArguments = decision.arguments,
-                starterUserId = starterUserId,
-                error = null,
+            val llmText =
+                geminiClient.generateAnswer(
+                    prompt = request.prompt,
+                    routeDescription = route.description,
+                    apiBody = apiResult.body,
+                    starterUserId = starterUserId,
+                    chatHistory = historyWithCurrentUser,
+                )
+            respondWithAgentMessage(
+                McpAgentResponse(
+                    success = true,
+                    routeName = apiResult.routeName,
+                    requestedUrl = apiResult.url,
+                    apiBody = apiResult.body,
+                    llmMessage = llmText,
+                    routeDecisionReason = decision.reason,
+                    resolvedArguments = decision.arguments,
+                    starterUserId = starterUserId,
+                    error = null,
+                ),
+                starterUserId,
+                agentIdentity,
             )
         } catch (ex: ExternalApiCallException) {
-            logger.warn(
-                "External API returned status={} for route='{}' url='{}'",
-                ex.statusCode,
-                route.name,
-                ex.url,
-            )
             val customMessage = resolveCustomErrorMessage(route, ex, decision.arguments)
             val fallbackNotFound =
                 if (customMessage == null && ex.statusCode == HttpStatus.NOT_FOUND.value()) {
@@ -127,29 +179,36 @@ class McpAgentService(
             val errorMessage =
                 finalMessage
                     ?: "`${route.name}` call failed: HTTP ${ex.statusCode ?: "?"}"
-            McpAgentResponse(
-                success = false,
-                routeName = route.name,
-                requestedUrl = ex.url,
-                apiBody = ex.responseBody,
-                llmMessage = finalMessage,
-                routeDecisionReason = decision.reason,
-                resolvedArguments = decision.arguments,
-                starterUserId = starterUserId,
-                error = errorMessage,
+            respondWithAgentMessage(
+                McpAgentResponse(
+                    success = false,
+                    routeName = route.name,
+                    requestedUrl = ex.url,
+                    apiBody = ex.responseBody,
+                    llmMessage = finalMessage,
+                    routeDecisionReason = decision.reason,
+                    resolvedArguments = decision.arguments,
+                    starterUserId = starterUserId,
+                    error = errorMessage,
+                ),
+                starterUserId,
+                agentIdentity,
             )
         } catch (ex: IllegalStateException) {
-            logger.warn("MCP execution failed for route='{}': {}", route.name, ex.message)
-            McpAgentResponse(
-                success = false,
-                routeName = route.name,
-                requestedUrl = null,
-                apiBody = null,
-                llmMessage = null,
-                routeDecisionReason = decision.reason,
-                resolvedArguments = decision.arguments,
-                starterUserId = starterUserId,
-                error = ex.message ?: "Agent request failed.",
+            respondWithAgentMessage(
+                McpAgentResponse(
+                    success = false,
+                    routeName = route.name,
+                    requestedUrl = null,
+                    apiBody = null,
+                    llmMessage = null,
+                    routeDecisionReason = decision.reason,
+                    resolvedArguments = decision.arguments,
+                    starterUserId = starterUserId,
+                    error = ex.message ?: "Agent request failed.",
+                ),
+                starterUserId,
+                agentIdentity,
             )
         }
     }
@@ -158,7 +217,6 @@ class McpAgentService(
         var path = route.pathTemplate
         val queryParameters = mutableListOf<Pair<String, String>>()
         val bodyParameters = linkedMapOf<String, String>()
-        logger.debug("Resolving path for route='{}' template='{}' arguments={}", route.name, route.pathTemplate, arguments)
         route.parameters.forEach { parameter ->
             val rawValue =
                 arguments
@@ -212,7 +270,6 @@ class McpAgentService(
                     throw IllegalStateException("Request body for `${route.name}` could not be created: ${ex.message}", ex)
                 }
             }
-        logger.debug("Resolved path='{}' bodyPresent={} for route='{}'", path, body != null, route.name)
         return ResolvedRoute(path = path, body = body)
     }
 
@@ -237,38 +294,116 @@ class McpAgentService(
         return rendered
     }
 
-    private fun friendlyRouteSuggestion(routes: List<McpRoute>): String {
-        val suggestionList =
-            routes
-                .take(5)
-                .joinToString(", ") { friendlyRouteLabel(it) }
-        return if (suggestionList.isBlank()) {
-            "Sorry, I couldn't match your request to any action I can take."
-        } else {
-            "Sorry, I couldn't match your request to any action I can take. I can help you with $suggestionList."
+    private fun resolveAgentIdentity(): AgentIdentity {
+        val username = properties.agentUsername.trim()
+        val userId = properties.agentUserId.trim()
+        if (username.isBlank()) {
+            throw IllegalStateException("MCP agent username is not configured.")
+        }
+        if (userId.isBlank()) {
+            throw IllegalStateException("MCP agent user id is not configured.")
+        }
+        val parsedId =
+            try {
+                UUID.fromString(userId)
+            } catch (ex: IllegalArgumentException) {
+                throw IllegalStateException("MCP agent user id is invalid: ${ex.message}", ex)
+            }
+        return AgentIdentity(username = username, userId = parsedId)
+    }
+
+    private fun loadChatHistory(userId: UUID, agentIdentity: AgentIdentity): List<McpConversationTurn> =
+        try {
+            val cutoffTimestamp = historyResetCutoff(userId, agentIdentity)
+            val pageRequest =
+                PageRequest.of(
+                    0,
+                    CHAT_HISTORY_LIMIT,
+                    Sort.by(Sort.Direction.DESC, "createdAt"),
+                )
+            messageRepository
+                .findChatHistory(userId, agentIdentity.userId, pageRequest)
+                .content
+                .asReversed()
+                .filter { cutoffTimestamp == null || it.createdAt.isAfter(cutoffTimestamp) }
+                .map { message ->
+                    val role =
+                        if (message.senderId == userId) {
+                            McpConversationRole.USER
+                        } else {
+                            McpConversationRole.AGENT
+                        }
+                    McpConversationTurn(role = role, content = message.content.orEmpty())
+                }
+        } catch (ex: Exception) {
+            emptyList()
+        }
+
+    private fun recordChatMessage(senderUsername: String, recipientId: UUID, content: String) {
+        if (content.isBlank()) {
+            return
+        }
+        try {
+            messageService.sendMessage(
+                senderUsername,
+                CreateMessageRequest(
+                    recipientId = recipientId,
+                    content = content,
+                ),
+            )
+        } catch (ex: Exception) {
         }
     }
 
-    private fun friendlyRouteLabel(route: McpRoute): String {
-        FRIENDLY_ROUTE_LABELS[route.name]?.let { return it }
-        val cleanedDescription = route.description.removeSuffix(".").replaceFirstChar { it.lowercaseChar() }
-        return cleanedDescription
+    private fun historyResetCutoff(userId: UUID, agentIdentity: AgentIdentity): OffsetDateTime? =
+        try {
+            messageRepository
+                .findTopBySenderIdAndRecipientIdAndContentOrderByCreatedAtDesc(
+                    agentIdentity.userId,
+                    agentIdentity.userId,
+                    historyResetMarker(userId),
+                )
+                ?.createdAt
+        } catch (ex: Exception) {
+            null
+        }
+
+    private fun recordHistoryReset(userId: UUID, agentIdentity: AgentIdentity) {
+        val sentinel =
+            Message(
+                senderId = agentIdentity.userId,
+                recipientId = agentIdentity.userId,
+                content = historyResetMarker(userId),
+                createdAt = OffsetDateTime.now(),
+                isRead = true,
+            )
+        try {
+            messageRepository.save(sentinel)
+        } catch (ex: Exception) {
+        }
+    }
+
+    private fun historyResetMarker(userId: UUID): String = "$HISTORY_RESET_MARKER_PREFIX$userId"
+
+    private fun respondWithAgentMessage(
+        response: McpAgentResponse,
+        starterUserId: UUID,
+        agentIdentity: AgentIdentity,
+        persistResponse: Boolean = true,
+    ): McpAgentResponse {
+        if (persistResponse) {
+            val reply = response.llmMessage ?: response.error
+            if (!reply.isNullOrBlank()) {
+                recordChatMessage(agentIdentity.username, starterUserId, reply)
+            }
+        }
+        return response
     }
 
     companion object {
+        private const val CHAT_HISTORY_LIMIT = 10
+        private const val HISTORY_RESET_MARKER_PREFIX = "__MCP_HISTORY_RESET__:"
         private val PLACEHOLDER_PATTERN = Pattern.compile("\\{([^}]+)}")
-        private val FRIENDLY_ROUTE_LABELS =
-            mapOf(
-                "User Statistics" to "your statistics",
-                "Get User By Username" to "finding users by username",
-                "Send Friend Request" to "sending friend requests",
-                "Received Friend Requests" to "reviewing received friend requests",
-                "Sent Friend Requests" to "tracking sent friend requests",
-                "Friend Suggestions" to "discovering suggested friends",
-                "Friend Stats" to "friendship stats and pending requests",
-                "Specific User Friends" to "viewing another user's friends (if permitted)",
-                "My Survey Responses" to "your survey responses",
-            )
     }
 }
 
@@ -277,9 +412,25 @@ private data class ResolvedRoute(
     val body: String?,
 )
 
+private data class AgentIdentity(
+    val username: String,
+    val userId: UUID,
+)
+
+data class McpConversationTurn(
+    val role: McpConversationRole,
+    val content: String,
+)
+
+enum class McpConversationRole {
+    USER,
+    AGENT,
+}
+
 data class McpAgentRequest(
     @field:NotBlank(message = "Prompt must not be blank")
     val prompt: String,
+    val resetHistory: Boolean = false,
 )
 
 data class McpAgentResponse(

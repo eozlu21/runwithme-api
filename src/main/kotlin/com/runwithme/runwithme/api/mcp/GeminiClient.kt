@@ -2,7 +2,6 @@ package com.runwithme.runwithme.api.mcp
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestTemplate
@@ -14,16 +13,18 @@ class GeminiClient(
     private val properties: McpProperties,
 ) {
     private val objectMapper = jacksonObjectMapper()
-    private val logger = LoggerFactory.getLogger(GeminiClient::class.java)
 
     // Asks Gemini to choose one of the allowed routes (function calling style).
-    fun selectRoute(prompt: String, routes: List<McpRoute>, starterUserId: UUID): GeminiRouteDecision {
+    fun selectRoute(
+        prompt: String,
+        routes: List<McpRoute>,
+        starterUserId: UUID,
+        chatHistory: List<McpConversationTurn> = emptyList(),
+    ): GeminiRouteDecision {
         if (routes.isEmpty()) {
-            logger.warn("Route selection skipped because whitelist is empty.")
             return GeminiRouteDecision(routeName = null, reason = "No route could be selected because the allow-list is empty.", arguments = null)
         }
         if (properties.geminiApiKey.isBlank()) {
-            logger.warn("Route selection skipped because MCP_GEMINI_API_KEY is blank.")
             return GeminiRouteDecision(routeName = null, reason = "No route could be selected because MCP_GEMINI_API_KEY is blank.", arguments = null)
         }
 
@@ -42,6 +43,7 @@ class GeminiClient(
         val selectionPrompt = buildString {
             appendLine("Task: Review the user request and choose exactly one allowed function.")
             appendLine("Starter user ID: $starterUserId")
+            appendChatHistory(chatHistory)
             appendLine("Function list:")
             appendLine(functionList)
             appendLine("Rules:")
@@ -53,16 +55,13 @@ class GeminiClient(
             appendLine("6) Produce JSON without any Markdown formatting (no bold or italics).")
             appendLine("User prompt: $prompt")
         }
-        logger.debug("Selecting route for prompt. promptPreview='{}'", prompt.take(120))
         val selectionResult = callGemini(selectionPrompt)
         if (selectionResult.error != null) {
-            logger.warn("Route selection failed: {}", selectionResult.error)
             return GeminiRouteDecision(routeName = null, reason = selectionResult.error, arguments = null)
         }
         val responseText =
             selectionResult.text
                 ?: run {
-                    logger.warn("Route selection returned empty text.")
                     return GeminiRouteDecision(routeName = null, reason = "Gemini response could not be read.", arguments = null)
                 }
         val sanitizedResponse = sanitizeJsonCandidate(responseText)
@@ -70,7 +69,6 @@ class GeminiClient(
             try {
                 objectMapper.readValue(sanitizedResponse, RouteSelectionPayload::class.java)
             } catch (ex: Exception) {
-                logger.warn("Route selection JSON parse failed: {}", ex.message)
                 return GeminiRouteDecision(
                     routeName = null,
                     reason = "Route selection was not valid JSON: ${ex.message}. Model response: $responseText",
@@ -78,23 +76,23 @@ class GeminiClient(
                 )
             }
         val reason = payload.reason?.takeIf { it.isNotBlank() } ?: "Model did not provide a reason."
-        logger.info(
-            "Route selected by Gemini. route='{}', reason='{}', arguments={}",
-            payload.routeName,
-            reason,
-            payload.arguments,
-        )
         return GeminiRouteDecision(payload.routeName?.trim(), reason, payload.arguments ?: emptyMap())
     }
 
     // Sends the merged prompt to Gemini and returns the readable text.
-    fun generateAnswer(prompt: String, routeDescription: String, apiBody: String, starterUserId: UUID): String {
+    fun generateAnswer(
+        prompt: String,
+        routeDescription: String,
+        apiBody: String,
+        starterUserId: UUID,
+        chatHistory: List<McpConversationTurn> = emptyList(),
+    ): String {
         if (properties.geminiApiKey.isBlank()) {
-            logger.warn("generateAnswer skipped because MCP_GEMINI_API_KEY is blank.")
             return "Response could not be generated because MCP_GEMINI_API_KEY is blank."
         }
 
         val combinedPrompt = buildString {
+            appendChatHistory(chatHistory)
             appendLine("User request: $prompt")
             appendLine("Starter user ID: $starterUserId")
             appendLine("Selected action: $routeDescription")
@@ -103,7 +101,6 @@ class GeminiClient(
             appendLine("Whenever a date appears in YYYY-MM-DD format, convert it to the written form (e.g., 20 May 2025).")
             append("Respond in plain text without Markdown formatting (no bullets, bold, or italics). New lines are allowed.")
         }
-        logger.debug("Requesting Gemini answer for routeDescription='{}'", routeDescription)
         val answerResult = callGemini(combinedPrompt)
         return answerResult.text ?: answerResult.error ?: "Gemini response could not be read."
     }
@@ -120,16 +117,12 @@ class GeminiClient(
             try {
                 restTemplate.postForObject(url, request, GeminiResponse::class.java)
             } catch (ex: RestClientException) {
-                logger.error("Gemini HTTP call failed: {}", ex.message)
                 return GeminiCallResult(
                     text = null,
                     error = "Gemini request failed: ${ex.message}",
                 )
             }
         val text = response?.firstText()
-        if (text == null) {
-            logger.warn("Gemini response did not contain text.")
-        }
         return GeminiCallResult(text = text, error = null)
     }
 
@@ -147,6 +140,24 @@ class GeminiClient(
         }
         return text.trim()
     }
+
+    private fun StringBuilder.appendChatHistory(chatHistory: List<McpConversationTurn>) {
+        if (chatHistory.isEmpty()) {
+            return
+        }
+        appendLine("Earlier conversation turns (oldest first):")
+        chatHistory.forEach { turn ->
+            appendLine("${roleLabel(turn.role)}: ${turn.content}")
+        }
+        appendLine("End of earlier conversation.")
+    }
+
+    private fun roleLabel(role: McpConversationRole): String =
+        if (role == McpConversationRole.USER) {
+            "user"
+        } else {
+            "assistant"
+        }
 
     companion object {
         const val NO_MATCH_ROUTE = "__NO_MATCH__"
