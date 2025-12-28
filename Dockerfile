@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3 /usr/bin/python
 
-# Install Python dependencies (CPU-only PyTorch to keep image smaller)
+# Install Python dependencies (CPU-only PyTorch + torchvision to keep image smaller)
 RUN pip3 install --no-cache-dir numpy pillow && \
-    pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+    pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
 # Copy the built JAR
 COPY --from=build /app/build/libs/*-SNAPSHOT.jar app.jar
