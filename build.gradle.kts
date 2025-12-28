@@ -37,6 +37,12 @@ java.sourceCompatibility = JavaVersion.VERSION_21
 
 repositories { mavenCentral() }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
@@ -60,6 +66,7 @@ dependencies {
     implementation("me.paulschwarz:spring-dotenv:4.0.0")
 
     runtimeOnly("org.postgresql:postgresql:42.7.4")
+    runtimeOnly("com.h2database:h2")
 
     // PostGIS and JTS for geospatial data
     implementation("org.locationtech.jts:jts-core:1.19.0")
