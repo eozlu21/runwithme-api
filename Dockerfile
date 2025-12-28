@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -sf /usr/bin/python3 /usr/bin/python
 
 # Install Python dependencies (CPU-only PyTorch to keep image smaller)
-RUN pip3 install --no-cache-dir numpy && \
+RUN pip3 install --no-cache-dir numpy pillow && \
     pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 # Copy the built JAR
