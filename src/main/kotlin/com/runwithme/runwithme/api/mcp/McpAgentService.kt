@@ -34,10 +34,12 @@ class McpAgentService(
         starterUserId: UUID,
         starterUsername: String,
     ): McpAgentResponse {
+        val requestId = UUID.randomUUID()
         val agentIdentity = resolveAgentIdentity()
         val priorHistory =
             if (request.resetHistory) {
                 recordHistoryReset(starterUserId, agentIdentity)
+                geminiClient.resetChatSessions(starterUserId)
                 emptyList()
             } else {
                 loadChatHistory(starterUserId, agentIdentity)
@@ -54,6 +56,7 @@ class McpAgentService(
                 availableRoutes,
                 starterUserId,
                 priorHistory,
+                requestId = requestId,
             )
         val historyWithCurrentUser =
             priorHistory + McpConversationTurn(McpConversationRole.USER, request.prompt)
@@ -148,6 +151,8 @@ class McpAgentService(
                     apiBody = apiResult.body,
                     starterUserId = starterUserId,
                     chatHistory = historyWithCurrentUser,
+                    routeArguments = decision.arguments,
+                    requestId = requestId,
                 )
             respondWithAgentMessage(
                 McpAgentResponse(
@@ -211,6 +216,12 @@ class McpAgentService(
                 agentIdentity,
             )
         }
+    }
+
+    fun resetHistory(starterUserId: UUID) {
+        val agentIdentity = resolveAgentIdentity()
+        recordHistoryReset(starterUserId, agentIdentity)
+        geminiClient.resetChatSessions(starterUserId)
     }
 
     private fun resolveRoute(route: McpRoute, arguments: Map<String, String>?): ResolvedRoute {

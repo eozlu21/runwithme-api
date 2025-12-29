@@ -38,4 +38,16 @@ class McpController(
             ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response)
         }
     }
+
+    @PostMapping("/reset-history")
+    fun resetHistory(authentication: Authentication): ResponseEntity<Void> {
+        val starterUserId =
+            userRepository
+                .findByUsername(authentication.name)
+                .orElseThrow { IllegalStateException("Authenticated user not found: ${authentication.name}") }
+                .userId
+                ?: throw IllegalStateException("User id missing for ${authentication.name}")
+        agentService.resetHistory(starterUserId)
+        return ResponseEntity.noContent().build()
+    }
 }
