@@ -11,6 +11,7 @@ data class McpProperties(
     val agentUserId: String = "",
     val agentRequestHeader: String = "X-MCP-Agent",
     val responseFilter: ResponseFilterProperties = ResponseFilterProperties(),
+    val mcpLogFile: String = "logs/mcp.log",
 ) {
     data class ResponseFilterProperties(
         val enabled: Boolean = true,
