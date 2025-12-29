@@ -62,6 +62,7 @@ class McpAgentService(
             priorHistory + McpConversationTurn(McpConversationRole.USER, request.prompt)
         val selectedRouteName = decision.routeName?.trim()
         if (selectedRouteName.isNullOrBlank()) {
+            val errorMessage = decision.reason ?: "Gemini could not select any route."
             return respondWithAgentMessage(
                 McpAgentResponse(
                     success = false,
@@ -69,10 +70,11 @@ class McpAgentService(
                     requestedUrl = null,
                     apiBody = null,
                     llmMessage = null,
+                    userMessage = errorMessage,
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
                     starterUserId = starterUserId,
-                    error = decision.reason ?: "Gemini could not select any route.",
+                    error = errorMessage,
                 ),
                 starterUserId,
                 agentIdentity,
@@ -87,6 +89,7 @@ class McpAgentService(
                     requestedUrl = null,
                     apiBody = null,
                     llmMessage = null,
+                    userMessage = reason,
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
                     starterUserId = starterUserId,
@@ -106,6 +109,7 @@ class McpAgentService(
                         requestedUrl = null,
                         apiBody = null,
                         llmMessage = null,
+                        userMessage = "Policy rejected because the selected route was not on the allow-list.",
                         routeDecisionReason = decision.reason,
                         resolvedArguments = decision.arguments,
                         starterUserId = starterUserId,
@@ -119,17 +123,19 @@ class McpAgentService(
             try {
                 resolveRoute(route, decision.arguments)
             } catch (ex: IllegalStateException) {
-            return respondWithAgentMessage(
-                McpAgentResponse(
-                    success = false,
+                val errorMessage = ex.message ?: "`${route.name}` could not be resolved."
+                return respondWithAgentMessage(
+                    McpAgentResponse(
+                        success = false,
                         routeName = route.name,
                         requestedUrl = null,
                         apiBody = null,
                         llmMessage = null,
+                        userMessage = errorMessage,
                         routeDecisionReason = decision.reason,
                         resolvedArguments = decision.arguments,
                         starterUserId = starterUserId,
-                        error = ex.message,
+                        error = errorMessage,
                     ),
                     starterUserId,
                     agentIdentity,
@@ -154,6 +160,7 @@ class McpAgentService(
                     routeArguments = decision.arguments,
                     requestId = requestId,
                 )
+            val userMessage = extractUserMessageFromEnvelope(llmText)
             respondWithAgentMessage(
                 McpAgentResponse(
                     success = true,
@@ -161,6 +168,7 @@ class McpAgentService(
                     requestedUrl = apiResult.url,
                     apiBody = apiResult.body,
                     llmMessage = llmText,
+                    userMessage = userMessage,
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
                     starterUserId = starterUserId,
@@ -191,6 +199,7 @@ class McpAgentService(
                     requestedUrl = ex.url,
                     apiBody = ex.responseBody,
                     llmMessage = finalMessage,
+                    userMessage = finalMessage ?: errorMessage,
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
                     starterUserId = starterUserId,
@@ -207,6 +216,7 @@ class McpAgentService(
                     requestedUrl = null,
                     apiBody = null,
                     llmMessage = null,
+                    userMessage = ex.message ?: "Agent request failed.",
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
                     starterUserId = starterUserId,
@@ -403,12 +413,24 @@ class McpAgentService(
         persistResponse: Boolean = true,
     ): McpAgentResponse {
         if (persistResponse) {
-            val reply = response.llmMessage ?: response.error
+            val reply = response.userMessage ?: response.error ?: response.llmMessage
             if (!reply.isNullOrBlank()) {
                 recordChatMessage(agentIdentity.username, starterUserId, reply)
             }
         }
         return response
+    }
+
+    internal fun extractUserMessageFromEnvelope(llmMessage: String?): String? {
+        if (llmMessage.isNullOrBlank()) {
+            return null
+        }
+        return try {
+            val summaryNode = objectMapper.readTree(llmMessage).path("data").path("summary")
+            summaryNode.takeUnless { it.isMissingNode || it.isNull }?.asText()?.takeIf { it.isNotBlank() }
+        } catch (ex: Exception) {
+            null
+        }
     }
 
     companion object {
@@ -450,6 +472,8 @@ data class McpAgentResponse(
     val requestedUrl: String?,
     val apiBody: String?,
     val llmMessage: String?,
+    // Human-readable text extracted from the LLM JSON envelope for UI consumption.
+    val userMessage: String?,
     val routeDecisionReason: String?,
     val resolvedArguments: Map<String, String>?,
     val starterUserId: UUID,
