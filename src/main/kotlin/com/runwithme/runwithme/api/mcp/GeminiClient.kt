@@ -4,9 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.stereotype.Component
 import com.runwithme.runwithme.api.mcp.prompts.McpSchemaPrompts
-import java.io.BufferedReader
-import java.io.InputStream
-import java.io.InputStreamReader
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -181,7 +178,7 @@ class GeminiClient(
                     systemInstruction = GeminiContent(role = "system", parts = listOf(GeminiTextPart(systemText))),
                     generationConfig = session.config.toGenerationConfig(),
                 )
-            val result = executeStreamRequest(request, stage, metadata)
+            val result = executeNonStreamRequest(request, stage, metadata)
             if (result.text != null) {
                 session.history.add(GeminiContent(role = "model", parts = listOf(GeminiTextPart(result.text))))
             } else {
@@ -214,10 +211,11 @@ class GeminiClient(
                     appendLine("Review the user request and choose exactly one allowed function from the JSON allow-list.")
                     appendLine("If no route applies, respond with routeName \"$NO_MATCH_ROUTE\" and explain why.")
                     appendLine("Do not emit Markdown or text outside the JSON response.")
+                    appendLine("If the user asks more than one question, answer the first one that is related to any of the routes.")
                 },
             responseMimeType = "application/json",
             temperature = 0.2,
-            maxOutputTokens = 512,
+            maxOutputTokens = 1000,
             responseSchema = ROUTE_SELECTION_SCHEMA,
         )
 
@@ -225,9 +223,10 @@ class GeminiClient(
         GeminiChatConfig(
             systemInstruction =
                 buildString {
-                    appendLine("You summarize API responses for the RunWithMe MCP agent.")
+                    appendLine("You summarize API responses of the RunWithMe MCP agent to the user.")
                     appendLine("Return concise JSON summaries that match the configured schema.")
                     appendLine("Do not suggest additional actions or follow-ups.")
+                    appendLine("Answer user like you are the one who ran or couldn't ran that api response. Do not give user any information about backend processes.")
                     appendLine("Whenever a date appears in YYYY-MM-DD format, convert it to a written form such as 20 May 2025.")
                 },
             responseMimeType = "application/json",
@@ -236,7 +235,7 @@ class GeminiClient(
             responseSchema = McpSchemaPrompts.answerSchemaMap(),
         )
 
-    private fun executeStreamRequest(
+    private fun executeNonStreamRequest(
         request: GeminiRequest,
         stage: GeminiLogStage,
         metadata: Map<String, Any?>,
@@ -246,133 +245,44 @@ class GeminiClient(
         val httpRequest =
             HttpRequest
                 .newBuilder()
-                .uri(streamEndpointUri())
+                .uri(nonStreamEndpointUri())
                 .timeout(Duration.ofSeconds(60))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(payload))
                 .build()
         val httpResponse =
             try {
-                httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofInputStream())
+                httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
             } catch (ex: Exception) {
-                mcpLogger.logGeminiError(stage, "Gemini stream failed: ${ex.message}", metadata, ex)
+                mcpLogger.logGeminiError(stage, "Gemini request failed: ${ex.message}", metadata, ex)
                 return GeminiCallResult(text = null, error = "Gemini request failed: ${ex.message}")
             }
         if (httpResponse.statusCode() >= 400) {
-            val errorBody = httpResponse.body().use { String(it.readAllBytes(), StandardCharsets.UTF_8) }
-            val errorMessage = "Gemini request failed: HTTP ${httpResponse.statusCode()} - $errorBody"
+            val errorMessage = "Gemini request failed: HTTP ${httpResponse.statusCode()} - ${httpResponse.body()}"
             mcpLogger.logGeminiError(stage, errorMessage, metadata)
             return GeminiCallResult(text = null, error = errorMessage)
         }
-        httpResponse.body().use { inputStream ->
-            val aggregated = readStreamingResponse(stage, metadata, inputStream)
-            val trimmed = aggregated?.trim()
-            return if (!trimmed.isNullOrEmpty()) {
-                GeminiCallResult(text = trimmed, error = null)
-            } else {
-                mcpLogger.logGeminiError(stage, "Gemini response could not be read from stream.", metadata)
-                GeminiCallResult(text = null, error = "Gemini response could not be read.")
-            }
-        }
-    }
-
-    private fun readStreamingResponse(
-        stage: GeminiLogStage,
-        metadata: Map<String, Any?>,
-        inputStream: InputStream,
-    ): String? {
-        val aggregated = StringBuilder()
-        val rawBuffer = StringBuilder()
-        var chunkIndex = 0
-        val reader = BufferedReader(InputStreamReader(inputStream, StandardCharsets.UTF_8))
-        val eventBuilder = StringBuilder()
-
-        fun flushEvent(force: Boolean = false) {
-            if (eventBuilder.isEmpty()) {
-                return
-            }
-            val payload = eventBuilder.toString()
-            val nextIndex = chunkIndex + 1
-            val chunkMetadata = metadata + ("chunkIndex" to nextIndex)
-            val chunkText = parseChunk(payload, stage, chunkMetadata)
-            if (!chunkText.isNullOrEmpty()) {
-                chunkIndex = nextIndex
-                aggregated.append(chunkText)
-                mcpLogger.logGeminiResponse(stage, chunkText, chunkMetadata)
-                eventBuilder.setLength(0)
-            } else if (force) {
-                eventBuilder.setLength(0)
-            }
-        }
-
-        reader.use { buffered ->
-            while (true) {
-                val rawLine = buffered.readLine() ?: break
-                rawBuffer.append(rawLine).append('\n')
-                val trimmed = rawLine.trim()
-                if (trimmed.isEmpty()) {
-                    flushEvent()
-                    continue
-                }
-                var cleanedLine =
-                    trimmed
-                        .removePrefix("data:")
-                        .trim()
-                if (cleanedLine == "[DONE]") {
-                    flushEvent(force = true)
-                    break
-                }
-                if (cleanedLine.isNotEmpty()) {
-                    eventBuilder.append(cleanedLine)
-                }
-            }
-        }
-        flushEvent(force = true)
-
-        if (chunkIndex == 0) {
-            val fallback = rawBuffer.toString().trim()
-            if (fallback.isNotEmpty()) {
-                val chunkText = parseChunk(fallback, stage, metadata + ("chunkIndex" to 1))
-                if (!chunkText.isNullOrEmpty()) {
-                    mcpLogger.logGeminiResponse(stage, chunkText, metadata + ("chunkIndex" to 1))
-                    aggregated.append(chunkText)
-                }
-            }
-        }
-
-        return aggregated.toString()
-    }
-
-    private fun parseChunk(
-        payload: String,
-        stage: GeminiLogStage,
-        metadata: Map<String, Any?>,
-    ): String? {
-        return try {
-            val chunk = objectMapper.readValue(payload, GeminiResponse::class.java)
-            chunk.firstText()
-        } catch (ex: Exception) {
+        val responseBody = httpResponse.body()
+        val response =
             try {
-                val list = objectMapper.readValue(payload, Array<GeminiResponse>::class.java)
-                val fallback = list.firstOrNull()?.firstText()
-                if (fallback != null) {
-                    return fallback
-                }
-            } catch (_: Exception) {
+                objectMapper.readValue(responseBody, GeminiResponse::class.java)
+            } catch (ex: Exception) {
+                mcpLogger.logGeminiError(stage, "Gemini response was not valid JSON: ${ex.message}", metadata + mapOf("rawResponse" to responseBody), ex)
+                return GeminiCallResult(text = null, error = "Gemini response could not be read.")
             }
-            val preview = if (payload.length > 500) payload.substring(0, 500) + "..." else payload
-            mcpLogger.logGeminiError(
-                stage,
-                "Gemini chunk parse failed: ${ex.message}",
-                metadata + mapOf("chunkPreview" to preview),
-                ex,
-            )
-            null
+        val text = response.allText()
+        return if (!text.isNullOrBlank()) {
+            mcpLogger.logGeminiResponse(stage, text, metadata)
+            GeminiCallResult(text = text, error = null)
+        } else {
+            val errorMessage = "Gemini response could not be read."
+            mcpLogger.logGeminiError(stage, errorMessage, metadata + mapOf("rawResponse" to responseBody))
+            GeminiCallResult(text = null, error = errorMessage)
         }
     }
 
-    private fun streamEndpointUri(): URI =
-        URI.create("https://generativelanguage.googleapis.com/v1beta/models/${properties.geminiModel}:streamGenerateContent?key=${properties.geminiApiKey}")
+    private fun nonStreamEndpointUri(): URI =
+        URI.create("https://generativelanguage.googleapis.com/v1beta/models/${properties.geminiModel}:generateContent?key=${properties.geminiApiKey}")
 
     fun resetChatSessions(starterUserId: UUID) {
         val removed =
@@ -590,11 +500,11 @@ private fun MutableList<GeminiContent>.removeLastOrNull(): GeminiContent? =
         removeAt(size - 1)
     }
 
-// Helper to grab the very first candidate text.
-private fun GeminiResponse.firstText(): String? =
+private fun GeminiResponse.allText(): String? =
     candidates
         ?.firstOrNull()
         ?.content
         ?.parts
-        ?.firstOrNull()
-        ?.text
+        ?.joinToString("") { it.text.orEmpty() }
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
