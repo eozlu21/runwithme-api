@@ -11,10 +11,22 @@ class McpPromptRouter {
     private val availableRoutes =
         listOf(
             McpRoute(
-                name = "User Statistics",
-                description = "Returns the authenticated user's statistics.",
+                name = "Get User Profile",
+                description = "Fetches a user's profile information",
                 method = HttpMethod.GET,
-                pathTemplate = "api/v1/users",
+                pathTemplate = "api/v1/user-profiles/{id}",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "id",
+                            description = "User id",
+                            required = true,
+                        ),
+                    ),
+                errorTemplates =
+                    mapOf(
+                        HttpStatus.NOT_FOUND.value() to "User profile not found",
+                    ),
             ),
             McpRoute(
                 name = "Get User By Username",
@@ -169,27 +181,4 @@ class McpPromptRouter {
     fun routes(): List<McpRoute> = availableRoutes
 
     fun routeByName(name: String): McpRoute? = availableRoutes.firstOrNull { it.name.equals(name, ignoreCase = true) }
-}
-
-data class McpRoute(
-    val name: String,
-    val description: String,
-    val method: HttpMethod,
-    val pathTemplate: String,
-    val parameters: List<McpRouteParameter> = emptyList(),
-    val requiresAuth: Boolean = true,
-    val errorTemplates: Map<Int, String> = emptyMap(),
-)
-
-data class McpRouteParameter(
-    val name: String,
-    val description: String,
-    val required: Boolean = true,
-    val location: McpRouteParameterLocation = McpRouteParameterLocation.PATH,
-)
-
-enum class McpRouteParameterLocation {
-    PATH,
-    QUERY,
-    BODY,
 }

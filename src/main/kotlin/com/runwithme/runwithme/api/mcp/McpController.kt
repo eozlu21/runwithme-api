@@ -2,7 +2,6 @@ package com.runwithme.runwithme.api.mcp
 
 import com.runwithme.runwithme.api.dto.MessageDto
 import com.runwithme.runwithme.api.dto.PageResponse
-import com.runwithme.runwithme.api.entity.Message
 import com.runwithme.runwithme.api.repository.MessageRepository
 import com.runwithme.runwithme.api.repository.UserRepository
 import io.swagger.v3.oas.annotations.Operation
@@ -72,6 +71,55 @@ class McpController(
         } else {
             ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response)
         }
+    }
+
+    @GetMapping("/chat/history")
+    @Operation(
+        summary = "Get MCP chat history",
+        description =
+            """
+            Returns paginated chat history between the authenticated user and the MCP agent user.
+
+            Useful for debugging or building an MCP chat UI.
+            """,
+    )
+    fun chatHistory(
+        @Parameter(description = "Zero-based page number", example = "0")
+        @RequestParam(defaultValue = "0") page: Int,
+        @Parameter(description = "Page size (1..100)", example = "20")
+        @RequestParam(defaultValue = "20") size: Int,
+        authentication: Authentication,
+    ): ResponseEntity<Any> {
+        val starter = requireAuthenticatedUser(authentication)
+        val agent = agentIdentityOrNull() ?: return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(McpChatErrorResponse("MCP agent identity is not configured."))
+
+        val safePage = if (page < 0) 0 else page
+        val safeSize =
+            when {
+                size < 1 -> 10
+                size > 100 -> 100
+                else -> size
+            }
+
+        val pageRequest =
+            PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(Sort.Direction.DESC, "createdAt"),
+            )
+        val messagePage = messageRepository.findChatHistory(starter.userId, agent.userId, pageRequest)
+
+        val response =
+            PageResponse.fromPage(messagePage) { message ->
+                val senderUsername = if (message.senderId == starter.userId) starter.username else agent.username
+                val recipientUsername = if (message.recipientId == starter.userId) starter.username else agent.username
+                MessageDto.fromEntity(
+                    message = message,
+                    senderUsername = senderUsername,
+                    recipientUsername = recipientUsername,
+                )
+            }
+        return ResponseEntity.ok(response)
     }
 
     @PostMapping("/chat/read-all")
@@ -149,26 +197,5 @@ class McpController(
                 return null
             }
         return AgentIdentity(userId = userId, username = username)
-    }
-
-    private data class AuthenticatedUser(
-        val userId: UUID,
-        val username: String,
-    )
-
-    private data class AgentIdentity(
-        val userId: UUID,
-        val username: String,
-    )
-
-    private data class McpReadAllMessagesResponse(
-        val updatedCount: Int,
-    )
-
-    private data class McpChatErrorResponse(
-        val message: String,
-    )
-
-    companion object {
     }
 }
