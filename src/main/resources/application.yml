@@ -103,7 +103,7 @@ firebase:
   enabled: true
   project-id: runwithme-ebd85
   credentials:
-    # Option 1: Path to service account JSON file
+    # Path to service account JSON file (mounted in Docker or local path)
     path: ${FIREBASE_CREDENTIALS_PATH:}
-    # Option 2: JSON string (for environment variables/secrets)
+    # JSON string option (for local dev if needed)
     json: ${FIREBASE_CREDENTIALS_JSON:}

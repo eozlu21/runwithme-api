@@ -60,16 +60,23 @@ jobs:
           PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           HOST: ${{ secrets.EC2_HOST }}
           USER: ${{ secrets.EC2_USER }}
+          FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
         run: |
           # Save private key
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
+
+          # Save Firebase credentials to a file (handles special characters properly)
+          echo "$FIREBASE_CREDENTIALS_JSON" > firebase-credentials.json
 
           # Ensure target dir exists on EC2 (and create if missing)
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "mkdir -p ~/runwithme-api"
 
           # Copy pre-built Docker image to EC2
           scp -o StrictHostKeyChecking=no -i private_key.pem app-image.tar.gz ${USER}@${HOST}:~/runwithme-api/
+
+          # Copy Firebase credentials to EC2
+          scp -o StrictHostKeyChecking=no -i private_key.pem firebase-credentials.json ${USER}@${HOST}:~/runwithme-api/
 
           # Load and run on EC2
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'EOF'
@@ -133,6 +140,7 @@ jobs:
               --name ${{ env.CONTAINER_NAME }} \
               --restart unless-stopped \
               --network host \
+              -v ~/runwithme-api/firebase-credentials.json:/app/firebase-credentials.json:ro \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
@@ -143,7 +151,7 @@ jobs:
               -e APP_BASE_URL="http://${{ secrets.EC2_HOST }}:8080" \
               -e MCP_GEMINI_API_KEY="${{ secrets.MCP_GEMINI_API_KEY }}" \
               -e MCP_EXTERNAL_API_BASE_URL="http://localhost:8080/" \
-              -e FIREBASE_CREDENTIALS_JSON="${{ secrets.FIREBASE_CREDENTIALS_JSON }}" \
+              -e FIREBASE_CREDENTIALS_PATH="/app/firebase-credentials.json" \
               -e JAVA_OPTS="-Xms256m -Xmx512m" \
               ${{ env.CONTAINER_NAME }}:latest
 
@@ -166,7 +174,7 @@ jobs:
           EOF
 
           # Clean up
-          rm -f private_key.pem app-image.tar.gz
+          rm -f private_key.pem app-image.tar.gz firebase-credentials.json
 
       - name: Verify deployment
         env:
