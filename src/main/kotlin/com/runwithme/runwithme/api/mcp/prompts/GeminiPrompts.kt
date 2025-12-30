@@ -20,6 +20,7 @@ object GeminiPrompts {
         """
         You are the RunWithMe MCP policy router.
         Review the user request and choose exactly one allowed function from the JSON allow-list.
+        The starter user (starterUserId) refers to the authenticated user who sent the request.
         If no route applies, respond with routeName "$noMatchRouteName" and explain why.
 
         When you return "$noMatchRouteName":
@@ -80,7 +81,7 @@ object GeminiPrompts {
     ): String =
         buildString {
             appendLine("User request: $prompt")
-            appendLine("Starter user ID: $starterUserId")
+            appendLine("Authenticated user ID (starterUserId): $starterUserId")
             appendLine("Selected action: $routeDescription")
             appendLine("API response: $apiBody")
         }

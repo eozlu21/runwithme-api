@@ -62,6 +62,7 @@ class McpAgentService(
                 routeSelectionHistory,
                 requestId = requestId,
             )
+        val decisionArguments = substituteArgumentPlaceholders(decision.arguments, starterUserId, starterUsername)
         val historyWithCurrentUser =
             if (priorHistory.lastOrNull()?.let { it.role == McpConversationRole.USER && it.content == request.prompt } == true) {
                 priorHistory
@@ -83,7 +84,7 @@ class McpAgentService(
                     apiBody = noMatchContext,
                     starterUserId = starterUserId,
                     chatHistory = answerHistory,
-                    routeArguments = decision.arguments,
+                    routeArguments = decisionArguments,
                     requestId = requestId,
                 )
             val extracted = extractUserMessageFromEnvelope(llmText)
@@ -100,7 +101,7 @@ class McpAgentService(
                     llmMessage = llmText,
                     userMessage = userMessage,
                     routeDecisionReason = decision.reason,
-                    resolvedArguments = decision.arguments,
+                    resolvedArguments = decisionArguments,
                     starterUserId = starterUserId,
                     error = null,
                 ),
@@ -120,7 +121,7 @@ class McpAgentService(
                         llmMessage = null,
                         userMessage = "Policy rejected because the selected route was not on the allow-list.",
                         routeDecisionReason = decision.reason,
-                        resolvedArguments = decision.arguments,
+                        resolvedArguments = decisionArguments,
                         starterUserId = starterUserId,
                         error = "Policy rejected because the selected route was not on the allow-list.",
                     ),
@@ -131,7 +132,7 @@ class McpAgentService(
 
         val resolvedRoute =
             try {
-                resolveRoute(route, decision.arguments)
+                resolveRoute(route, decisionArguments)
             } catch (ex: IllegalStateException) {
                 val errorMessage = ex.message ?: "`${route.name}` could not be resolved."
                 return respondWithAgentMessage(
@@ -143,7 +144,7 @@ class McpAgentService(
                         llmMessage = null,
                         userMessage = errorMessage,
                         routeDecisionReason = decision.reason,
-                        resolvedArguments = decision.arguments,
+                        resolvedArguments = decisionArguments,
                         starterUserId = starterUserId,
                         error = errorMessage,
                     ),
@@ -168,7 +169,7 @@ class McpAgentService(
                     apiBody = apiResult.body,
                     starterUserId = starterUserId,
                     chatHistory = answerHistory,
-                    routeArguments = decision.arguments,
+                    routeArguments = decisionArguments,
                     requestId = requestId,
                 )
             val userMessage = extractUserMessageFromEnvelope(llmText)
@@ -181,7 +182,7 @@ class McpAgentService(
                     llmMessage = llmText,
                     userMessage = userMessage,
                     routeDecisionReason = decision.reason,
-                    resolvedArguments = decision.arguments,
+                    resolvedArguments = decisionArguments,
                     starterUserId = starterUserId,
                     error = null,
                 ),
@@ -190,10 +191,10 @@ class McpAgentService(
                 persistResponse = persistAgentReply,
             )
         } catch (ex: ExternalApiCallException) {
-            val customMessage = resolveCustomErrorMessage(route, ex, decision.arguments)
+            val customMessage = resolveCustomErrorMessage(route, ex, decisionArguments)
             val fallbackNotFound =
                 if (customMessage == null && ex.statusCode == HttpStatus.NOT_FOUND.value()) {
-                    decision.arguments?.get("username")?.takeIf { it.isNotBlank() }?.let {
+                    decisionArguments?.get("username")?.takeIf { it.isNotBlank() }?.let {
                         "No user named '$it' was found."
                     } ?: "No user was found."
                 } else {
@@ -235,7 +236,7 @@ class McpAgentService(
                         llmMessage = payload,
                         userMessage = summary,
                         routeDecisionReason = decision.reason,
-                        resolvedArguments = decision.arguments,
+                        resolvedArguments = decisionArguments,
                         starterUserId = starterUserId,
                         error = summary,
                     ),
@@ -253,7 +254,7 @@ class McpAgentService(
                     llmMessage = finalMessage,
                     userMessage = finalMessage ?: errorMessage,
                     routeDecisionReason = decision.reason,
-                    resolvedArguments = decision.arguments,
+                    resolvedArguments = decisionArguments,
                     starterUserId = starterUserId,
                     error = errorMessage,
                 ),
@@ -271,7 +272,7 @@ class McpAgentService(
                     llmMessage = null,
                     userMessage = ex.message ?: "Agent request failed.",
                     routeDecisionReason = decision.reason,
-                    resolvedArguments = decision.arguments,
+                    resolvedArguments = decisionArguments,
                     starterUserId = starterUserId,
                     error = ex.message ?: "Agent request failed.",
                 ),
@@ -522,4 +523,28 @@ class McpAgentService(
         } catch (ex: Exception) {
             """{"type":"error","data":{"summary":"$summary","highlights":[],"metadata":[]},"errors":[]}"""
         }
+
+    private fun substituteArgumentPlaceholders(
+        arguments: Map<String, String>?,
+        starterUserId: UUID,
+        starterUsername: String,
+    ): Map<String, String>? {
+        if (arguments.isNullOrEmpty()) {
+            return arguments
+        }
+        return arguments.mapValues { (_, raw) ->
+            val value = raw.trim()
+            when {
+                value.equals("starterUserId", ignoreCase = true) ||
+                    value.equals("{starterUserId}", ignoreCase = true) ||
+                    value.equals("\$starterUserId", ignoreCase = true) ->
+                    starterUserId.toString()
+                value.equals("starterUsername", ignoreCase = true) ||
+                    value.equals("{starterUsername}", ignoreCase = true) ||
+                    value.equals("\$starterUsername", ignoreCase = true) ->
+                    starterUsername
+                else -> value
+            }
+        }
+    }
 }
