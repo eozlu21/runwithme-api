@@ -1,12 +1,14 @@
 package com.runwithme.runwithme.api.service
 
 import com.runwithme.runwithme.api.dto.CreateUserProfileRequest
+import com.runwithme.runwithme.api.dto.LimitedUserProfileDto
 import com.runwithme.runwithme.api.dto.PageResponse
 import com.runwithme.runwithme.api.dto.UpdateUserProfileRequest
 import com.runwithme.runwithme.api.dto.UserProfileDto
 import com.runwithme.runwithme.api.entity.UserProfile
 import com.runwithme.runwithme.api.exception.UnauthorizedActionException
 import com.runwithme.runwithme.api.repository.UserProfileRepository
+import com.runwithme.runwithme.api.repository.UserRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
@@ -16,11 +18,14 @@ import java.util.UUID
 @Service
 class UserProfileService(
     private val userProfileRepository: UserProfileRepository,
+    private val friendshipService: FriendshipService,
+    private val userRepository: UserRepository,
 ) {
     fun getUserProfiles(
         page: Int,
         size: Int,
-    ): PageResponse<UserProfileDto> {
+        viewerId: UUID?,
+    ): PageResponse<Any> {
         val safePage = if (page < 0) 0 else page
         val safeSize =
             when {
@@ -30,10 +35,65 @@ class UserProfileService(
             }
         val pageRequest = PageRequest.of(safePage, safeSize, Sort.by("userId").ascending())
         val userProfilePage = userProfileRepository.findAll(pageRequest)
-        return PageResponse.fromPage(userProfilePage, UserProfileDto::fromEntity)
+
+        // Map profiles to either full or limited based on visibility
+        val profiles =
+            userProfilePage.content.mapNotNull { profile ->
+                profile.userId?.let { targetId ->
+                    val canViewFull = friendshipService.canViewProfile(viewerId, targetId)
+
+                    if (canViewFull) {
+                        UserProfileDto.fromEntity(profile)
+                    } else {
+                        // Get username from User entity for limited view
+                        userRepository.findById(targetId).orElse(null)?.let { user ->
+                            LimitedUserProfileDto(
+                                userId = targetId,
+                                username = user.username,
+                                profileVisibility = profile.profileVisibility,
+                                isRestricted = true,
+                            )
+                        }
+                    }
+                }
+            }
+
+        return PageResponse(
+            content = profiles,
+            pageNumber = safePage,
+            pageSize = safeSize,
+            totalElements = profiles.size.toLong(),
+            totalPages = (profiles.size + safeSize - 1) / safeSize,
+            first = safePage == 0,
+            last = safePage >= (profiles.size + safeSize - 1) / safeSize - 1,
+        )
     }
 
     fun getUserProfileById(id: UUID): UserProfileDto? = userProfileRepository.findById(id).map(UserProfileDto::fromEntity).orElse(null)
+
+    fun getUserProfileByIdWithVisibility(
+        id: UUID,
+        viewerId: UUID?,
+    ): Any? {
+        val userProfile = userProfileRepository.findById(id).orElse(null) ?: return null
+
+        // Check if viewer can see full profile details
+        val canViewFull = friendshipService.canViewProfile(viewerId, id)
+
+        return if (canViewFull) {
+            // Return full profile
+            UserProfileDto.fromEntity(userProfile)
+        } else {
+            // Return limited profile with just username and visibility
+            val user = userRepository.findById(id).orElse(null) ?: return null
+            LimitedUserProfileDto(
+                userId = id,
+                username = user.username,
+                profileVisibility = userProfile.profileVisibility,
+                isRestricted = true,
+            )
+        }
+    }
 
     @Transactional
     fun createUserProfile(
@@ -96,11 +156,18 @@ class UserProfileService(
     }
 
     @Transactional
-    fun deleteUserProfile(id: UUID): Boolean {
-        if (!userProfileRepository.existsById(id)) {
-            return false
+    fun deleteUserProfile(
+        id: UUID,
+        authenticatedUserId: UUID,
+    ) {
+        val userProfile =
+            userProfileRepository.findById(id).orElse(null)
+                ?: throw IllegalArgumentException("User profile not found")
+
+        if (userProfile.userId != authenticatedUserId) {
+            throw UnauthorizedActionException("You can only delete your own profile")
         }
+
         userProfileRepository.deleteById(id)
-        return true
     }
 }

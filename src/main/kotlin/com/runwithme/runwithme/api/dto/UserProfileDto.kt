@@ -120,3 +120,15 @@ data class UpdateUserProfileRequest(
     @Schema(description = "City ID", example = "2344")
     val cityId: Int?,
 )
+
+@Schema(description = "Limited user profile view (when profile is not fully visible)")
+data class LimitedUserProfileDto(
+    @Schema(description = "User unique identifier")
+    val userId: UUID,
+    @Schema(description = "Username")
+    val username: String,
+    @Schema(description = "Profile visibility setting")
+    val profileVisibility: String,
+    @Schema(description = "Indicates this is a restricted view", example = "true")
+    val isRestricted: Boolean = true,
+)

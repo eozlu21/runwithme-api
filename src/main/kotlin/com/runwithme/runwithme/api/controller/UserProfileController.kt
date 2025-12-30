@@ -38,7 +38,7 @@ class UserProfileController(
     @GetMapping
     @Operation(
         summary = "Get all user profiles with pagination",
-        description = "Retrieves a paginated list of user profiles. Default page size is 10.",
+        description = "Retrieves a paginated list of user profiles. Returns full profiles for visible ones, limited profiles otherwise. Default page size is 10.",
     )
     @ApiResponses(
         value = [
@@ -56,12 +56,21 @@ class UserProfileController(
         @Parameter(description = "Number of items per page", example = "10")
         @RequestParam(defaultValue = "10")
         size: Int,
-    ): ResponseEntity<PageResponse<UserProfileDto>> = ResponseEntity.ok(userProfileService.getUserProfiles(page, size))
+        principal: Principal?,
+    ): ResponseEntity<PageResponse<Any>> {
+        val viewerId =
+            principal?.let {
+                userService.getUserIdByUsername(it.name)
+            }
+
+        val userProfiles = userProfileService.getUserProfiles(page, size, viewerId)
+        return ResponseEntity.ok(userProfiles)
+    }
 
     @GetMapping("/{id}")
     @Operation(
         summary = "Get user profile by user ID",
-        description = "Retrieves a single user profile by user ID",
+        description = "Retrieves a single user profile by user ID. Returns full profile if visible, limited profile otherwise.",
     )
     @ApiResponses(
         value = [
@@ -76,8 +85,14 @@ class UserProfileController(
     fun getUserProfileById(
         @Parameter(description = "User ID", example = "1")
         @PathVariable id: UUID,
-    ): ResponseEntity<UserProfileDto> {
-        val userProfile = userProfileService.getUserProfileById(id)
+        principal: Principal?,
+    ): ResponseEntity<Any> {
+        val viewerId =
+            principal?.let {
+                userService.getUserIdByUsername(it.name)
+            }
+
+        val userProfile = userProfileService.getUserProfileByIdWithVisibility(id, viewerId)
         return if (userProfile != null) {
             ResponseEntity.ok(userProfile)
         } else {
@@ -150,23 +165,26 @@ class UserProfileController(
     @DeleteMapping("/{id}")
     @Operation(
         summary = "Delete user profile",
-        description = "Deletes a user profile by user ID",
+        description = "Deletes a user profile by user ID. Users can only delete their own profile.",
     )
     @ApiResponses(
         value = [
             ApiResponse(responseCode = "204", description = "User profile deleted successfully"),
             ApiResponse(responseCode = "404", description = "User profile not found"),
+            ApiResponse(responseCode = "403", description = "Cannot delete another user's profile"),
         ],
     )
     fun deleteUserProfile(
         @Parameter(description = "User ID", example = "1")
         @PathVariable id: UUID,
+        principal: Principal,
     ): ResponseEntity<Void> {
-        val deleted = userProfileService.deleteUserProfile(id)
-        return if (deleted) {
-            ResponseEntity.status(HttpStatus.NO_CONTENT).build()
-        } else {
-            ResponseEntity.status(HttpStatus.NOT_FOUND).build()
-        }
+        val authenticatedUserId =
+            userService
+                .getUserIdByUsername(principal.name)
+                ?: throw UnauthorizedActionException("Authenticated user not found")
+
+        userProfileService.deleteUserProfile(id, authenticatedUserId)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
     }
 }
