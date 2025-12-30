@@ -13,6 +13,7 @@ import java.net.URI
 class McpExternalApiClient(
     private val restTemplate: RestTemplate,
     private val properties: McpProperties,
+    private val mcpLogger: McpLogger,
 ) {
     // Calls the resolved route with the caller's Authorization header.
     fun fetchData(
@@ -33,11 +34,41 @@ class McpExternalApiClient(
         if (!requestBody.isNullOrEmpty()) {
             headers.contentType = MediaType.APPLICATION_JSON
         }
+
+        val headersForLog =
+            headers
+                .filterKeys { it.lowercase() != HttpHeaders.AUTHORIZATION.lowercase() }
+                .mapValues { (_, values) -> values.joinToString(",") }
+        mcpLogger.logExternalApiRequest(
+            routeName = route.name,
+            method = route.method.name(),
+            url = urlToCall,
+            headers = headersForLog,
+            body = requestBody,
+        )
+
         val request = RequestEntity<String>(requestBody, headers, route.method, URI.create(urlToCall))
         val body =
             try {
-                restTemplate.exchange(request, String::class.java).body ?: ""
+                val responseEntity = restTemplate.exchange(request, String::class.java)
+                mcpLogger.logExternalApiResponse(
+                    routeName = route.name,
+                    method = route.method.name(),
+                    url = urlToCall,
+                    statusCode = responseEntity.statusCode.value(),
+                    body = responseEntity.body,
+                )
+                responseEntity.body ?: ""
             } catch (ex: HttpStatusCodeException) {
+                mcpLogger.logExternalApiError(
+                    routeName = route.name,
+                    method = route.method.name(),
+                    url = urlToCall,
+                    statusCode = ex.statusCode.value(),
+                    errorMessage = "HTTP ${ex.statusCode.value()}",
+                    responseBody = ex.responseBodyAsString,
+                    throwable = ex,
+                )
                 throw ExternalApiCallException(
                     routeName = route.name,
                     url = urlToCall,
@@ -46,6 +77,14 @@ class McpExternalApiClient(
                     cause = ex,
                 )
             } catch (ex: RestClientException) {
+                mcpLogger.logExternalApiError(
+                    routeName = route.name,
+                    method = route.method.name(),
+                    url = urlToCall,
+                    statusCode = null,
+                    errorMessage = ex.message ?: "RestClientException",
+                    throwable = ex,
+                )
                 throw IllegalStateException("`${route.name}` call failed: ${ex.message}", ex)
             }
         return ExternalApiResult(route.name, urlToCall, body)
@@ -59,17 +98,3 @@ class McpExternalApiClient(
             properties.externalApiBaseUrl.trimEnd('/') + "/" + rawPath.trimStart('/')
         }
 }
-
-data class ExternalApiResult(
-    val routeName: String,
-    val url: String,
-    val body: String,
-)
-
-class ExternalApiCallException(
-    val routeName: String,
-    val url: String,
-    val statusCode: Int?,
-    val responseBody: String?,
-    cause: Throwable,
-) : RuntimeException(cause)

@@ -1,9 +1,9 @@
 package com.runwithme.runwithme.api.mcp
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.springframework.stereotype.Component
+import com.runwithme.runwithme.api.mcp.prompts.GeminiPrompts
 import com.runwithme.runwithme.api.mcp.prompts.McpSchemaPrompts
+import org.springframework.stereotype.Component
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -42,18 +42,15 @@ class GeminiClient(
         }
 
         val functionListJson = objectMapper.writeValueAsString(routes.toGeminiRoutePayload())
-        val selectionPrompt = buildString {
-            appendLine("Starter user ID: $starterUserId")
-            appendLine("User prompt: $prompt")
-        }
+        val selectionPrompt = GeminiPrompts.routeSelectionUserPrompt(starterUserId, prompt)
         val selectionMetadata =
             mutableMapOf<String, Any?>(
                 "starterUserId" to starterUserId,
                 "routeNames" to routes.joinToString(",") { it.name },
                 "historyCount" to chatHistory.size,
-            ).apply {
-                requestId?.let { put("requestId", it.toString()) }
-            }
+                ).apply {
+                    requestId?.let { put("requestId", it.toString()) }
+                }
         val selectionResult =
             sendChatMessage(
                 key = GeminiChatKey(starterUserId, GeminiLogStage.ROUTE_SELECTION),
@@ -61,10 +58,10 @@ class GeminiClient(
                 userMessage = selectionPrompt,
                 metadata = selectionMetadata,
                 chatHistory = chatHistory,
-                systemSupplement = buildRouteSystemSupplement(functionListJson),
+                systemSupplement = GeminiPrompts.routeSelectionSupplement(functionListJson),
             )
         if (selectionResult.error != null) {
-            return GeminiRouteDecision(routeName = null, reason = selectionResult.error, arguments = null)
+            return GeminiRouteDecision(routeName = NO_MATCH_ROUTE, reason = selectionResult.error, arguments = emptyMap())
         }
         val responseText =
             selectionResult.text
@@ -74,13 +71,14 @@ class GeminiClient(
                         "Gemini response had no text candidate.",
                         selectionMetadata,
                     )
-                    return GeminiRouteDecision(routeName = null, reason = "Gemini response could not be read.", arguments = null)
+                    return GeminiRouteDecision(routeName = NO_MATCH_ROUTE, reason = "Gemini response could not be read.", arguments = emptyMap())
                 }
         val sanitizedResponse = sanitizeJsonCandidate(responseText)
         val payload =
             try {
                 objectMapper.readValue(sanitizedResponse, RouteSelectionPayload::class.java)
             } catch (ex: Exception) {
+                val extractedReason = extractJsonStringValue(sanitizedResponse, "reason")?.takeIf { it.isNotBlank() }
                 val errorMetadata = selectionMetadata + mapOf("rawResponse" to sanitizedResponse)
                 mcpLogger.logGeminiError(
                     GeminiLogStage.ROUTE_SELECTION,
@@ -89,9 +87,9 @@ class GeminiClient(
                     ex,
                 )
                 return GeminiRouteDecision(
-                    routeName = null,
-                    reason = "Route selection was not valid JSON: ${ex.message}. Model response: $responseText",
-                    arguments = null,
+                    routeName = NO_MATCH_ROUTE,
+                    reason = extractedReason ?: "I couldn't decide an action for that request.",
+                    arguments = emptyMap(),
                 )
             }
         val reason = payload.reason?.takeIf { it.isNotBlank() } ?: "Model did not provide a reason."
@@ -117,12 +115,13 @@ class GeminiClient(
             return "Response could not be generated because MCP_GEMINI_API_KEY is blank."
         }
 
-        val combinedPrompt = buildString {
-            appendLine("User request: $prompt")
-            appendLine("Starter user ID: $starterUserId")
-            appendLine("Selected action: $routeDescription")
-            appendLine("API response: $apiBody")
-        }
+        val combinedPrompt =
+            GeminiPrompts.answerUserPrompt(
+                prompt = prompt,
+                starterUserId = starterUserId,
+                routeDescription = routeDescription,
+                apiBody = apiBody,
+            )
         val answerMetadata =
             mutableMapOf<String, Any?>(
                 "starterUserId" to starterUserId,
@@ -203,14 +202,7 @@ class GeminiClient(
 
     private fun routeSelectionChatConfig(): GeminiChatConfig =
         GeminiChatConfig(
-            systemInstruction =
-                buildString {
-                    appendLine("You are the RunWithMe MCP policy router.")
-                    appendLine("Review the user request and choose exactly one allowed function from the JSON allow-list.")
-                    appendLine("If no route applies, respond with routeName \"$NO_MATCH_ROUTE\" and explain why.")
-                    appendLine("Do not emit Markdown or text outside the JSON response.")
-                    appendLine("If the user asks more than one question, answer the first one that is related to any of the routes.")
-                },
+            systemInstruction = GeminiPrompts.routeSelectionSystemInstruction(NO_MATCH_ROUTE),
             responseMimeType = "application/json",
             temperature = 0.2,
             maxOutputTokens = 1000,
@@ -219,14 +211,7 @@ class GeminiClient(
 
     private fun answerChatConfig(): GeminiChatConfig =
         GeminiChatConfig(
-            systemInstruction =
-                buildString {
-                    appendLine("You summarize API responses of the RunWithMe MCP agent to the user.")
-                    appendLine("Return concise JSON summaries that match the configured schema.")
-                    appendLine("Do not suggest additional actions or follow-ups.")
-                    appendLine("Answer user like you are the one who ran or couldn't ran that api response. Do not give user any information about backend processes.")
-                    appendLine("Whenever a date appears in YYYY-MM-DD format, convert it to a written form such as 20 May 2025.")
-                },
+            systemInstruction = GeminiPrompts.answerSystemInstruction(),
             responseMimeType = "application/json",
             temperature = 0.2,
             maxOutputTokens = 512,
@@ -310,6 +295,34 @@ class GeminiClient(
         return text.trim()
     }
 
+    private fun extractJsonStringValue(jsonish: String, fieldName: String): String? {
+        val needle = "\"$fieldName\""
+        val start = jsonish.indexOf(needle)
+        if (start < 0) return null
+        val colon = jsonish.indexOf(':', start + needle.length)
+        if (colon < 0) return null
+        val firstQuote = jsonish.indexOf('"', colon + 1)
+        if (firstQuote < 0) return null
+        val builder = StringBuilder()
+        var escaped = false
+        var index = firstQuote + 1
+        while (index < jsonish.length) {
+            val ch = jsonish[index]
+            if (escaped) {
+                builder.append(ch)
+                escaped = false
+            } else if (ch == '\\') {
+                escaped = true
+            } else if (ch == '"') {
+                return builder.toString()
+            } else {
+                builder.append(ch)
+            }
+            index++
+        }
+        return builder.toString()
+    }
+
     private fun chatHistoryToGeminiHistory(chatHistory: List<McpConversationTurn>): MutableList<GeminiContent> =
         chatHistory
             .mapNotNull { turn ->
@@ -332,104 +345,6 @@ class GeminiClient(
         const val NO_MATCH_ROUTE = "__NO_MATCH__"
     }
 }
-
-data class GeminiCallResult(
-    val text: String?,
-    val error: String?,
-)
-
-data class GeminiRouteDecision(
-    val routeName: String?,
-    val reason: String?,
-    val arguments: Map<String, String>?,
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class RouteSelectionPayload(
-    val routeName: String?,
-    val reason: String?,
-    val arguments: List<GeminiArgumentPair>? = emptyList(),
-)
-
-data class GeminiArgumentPair(
-    val key: String,
-    val value: String,
-)
-
-data class GeminiRequest(
-    val contents: List<GeminiContent>,
-    val systemInstruction: GeminiContent? = null,
-    val generationConfig: GeminiGenerationConfig? = null,
-)
-
-data class GeminiGenerationConfig(
-    val temperature: Double? = null,
-    val maxOutputTokens: Int? = null,
-    val responseMimeType: String? = null,
-    val responseSchema: Map<String, Any>? = null,
-)
-
-data class GeminiContent(
-    val role: String? = null,
-    val parts: List<GeminiTextPart>,
-)
-
-data class GeminiTextPart(
-    val text: String,
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class GeminiResponse(
-    val candidates: List<GeminiCandidate>? = emptyList(),
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class GeminiCandidate(
-    val content: GeminiResponseContent? = null,
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class GeminiResponseContent(
-    val parts: List<GeminiResponsePart>? = emptyList(),
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class GeminiResponsePart(
-    val text: String? = null,
-)
-
-data class GeminiRouteDescriptionPayload(
-    val name: String,
-    val description: String,
-    val method: String,
-    val pathTemplate: String,
-    val parameters: List<GeminiRouteParameterPayload>,
-)
-
-data class GeminiRouteParameterPayload(
-    val name: String,
-    val description: String,
-    val required: Boolean,
-    val location: String,
-)
-
-data class GeminiChatConfig(
-    val systemInstruction: String,
-    val responseMimeType: String,
-    val temperature: Double,
-    val maxOutputTokens: Int,
-    val responseSchema: Map<String, Any>? = null,
-)
-
-data class GeminiChatSession(
-    val config: GeminiChatConfig,
-    val history: MutableList<GeminiContent>,
-)
-
-data class GeminiChatKey(
-    val starterUserId: UUID,
-    val stage: GeminiLogStage,
-)
 
 private val ROUTE_SELECTION_SCHEMA: Map<String, Any> =
     mapOf(
@@ -455,12 +370,6 @@ private val ROUTE_SELECTION_SCHEMA: Map<String, Any> =
             ),
         "required" to listOf("routeName", "reason", "arguments"),
     )
-
-private fun buildRouteSystemSupplement(routesJson: String): String =
-    buildString {
-        appendLine("Allowed routes (JSON array):")
-        append(routesJson)
-    }.trim()
 
 private fun GeminiChatConfig.toGenerationConfig(): GeminiGenerationConfig =
     GeminiGenerationConfig(

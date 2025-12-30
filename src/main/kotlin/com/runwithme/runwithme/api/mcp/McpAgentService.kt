@@ -5,7 +5,6 @@ import com.runwithme.runwithme.api.dto.CreateMessageRequest
 import com.runwithme.runwithme.api.entity.Message
 import com.runwithme.runwithme.api.repository.MessageRepository
 import com.runwithme.runwithme.api.service.MessageService
-import jakarta.validation.constraints.NotBlank
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
@@ -69,44 +68,43 @@ class McpAgentService(
                 priorHistory + McpConversationTurn(McpConversationRole.USER, request.prompt)
             }
         val selectedRouteName = decision.routeName?.trim()
-        if (selectedRouteName.isNullOrBlank()) {
-            val errorMessage = decision.reason ?: "Gemini could not select any route."
+        if (selectedRouteName.isNullOrBlank() || selectedRouteName.equals(GeminiClient.NO_MATCH_ROUTE, ignoreCase = true)) {
+            val noMatchContext =
+                buildString {
+                    appendLine("No API call was executed for this request.")
+                    decision.reason?.takeIf { it.isNotBlank() }?.let { appendLine("Router note: $it") }
+                }.trim()
+            val llmText =
+                geminiClient.generateAnswer(
+                    prompt = request.prompt,
+                    routeDescription = "No matching action",
+                    apiBody = noMatchContext,
+                    starterUserId = starterUserId,
+                    chatHistory = historyWithCurrentUser,
+                    routeArguments = decision.arguments,
+                    requestId = requestId,
+                )
+            val extracted = extractUserMessageFromEnvelope(llmText)
+            val userMessage =
+                extracted
+                    ?: llmText.takeUnless { it.trimStart().startsWith("{") }
+                    ?: defaultNoMatchMessage()
             return respondWithAgentMessage(
                 McpAgentResponse(
-                    success = false,
-                    routeName = null,
+                    success = true,
+                    routeName = GeminiClient.NO_MATCH_ROUTE,
                     requestedUrl = null,
                     apiBody = null,
-                    llmMessage = null,
-                    userMessage = errorMessage,
+                    llmMessage = llmText,
+                    userMessage = userMessage,
                     routeDecisionReason = decision.reason,
                     resolvedArguments = decision.arguments,
                     starterUserId = starterUserId,
-                    error = errorMessage,
+                    error = null,
                 ),
                 starterUserId,
                 agentIdentity,
                 persistResponse = persistAgentReply,
-            )
-        }
-        if (selectedRouteName.equals(GeminiClient.NO_MATCH_ROUTE, ignoreCase = true)) {
-            val reason = decision.reason ?: "I couldn't match that request to any action I can take."
-            return respondWithAgentMessage(
-                McpAgentResponse(
-                    success = false,
-                    routeName = null,
-                    requestedUrl = null,
-                    apiBody = null,
-                    llmMessage = null,
-                    userMessage = reason,
-                    routeDecisionReason = decision.reason,
-                    resolvedArguments = decision.arguments,
-                    starterUserId = starterUserId,
-                    error = reason,
-                ),
-                starterUserId,
-                agentIdentity,
-                persistResponse = false,
             )
         }
         val route =
@@ -452,44 +450,7 @@ class McpAgentService(
         private const val HISTORY_RESET_MARKER_PREFIX = "__MCP_HISTORY_RESET__:"
         private val PLACEHOLDER_PATTERN = Pattern.compile("\\{([^}]+)}")
     }
+
+    private fun defaultNoMatchMessage(): String =
+        "I can't turn that into an action right now. I'm the RunWithMe assistant; I can help with certain in-app actions and information."
 }
-
-private data class ResolvedRoute(
-    val path: String,
-    val body: String?,
-)
-
-private data class AgentIdentity(
-    val username: String,
-    val userId: UUID,
-)
-
-data class McpConversationTurn(
-    val role: McpConversationRole,
-    val content: String,
-)
-
-enum class McpConversationRole {
-    USER,
-    AGENT,
-}
-
-data class McpAgentRequest(
-    @field:NotBlank(message = "Prompt must not be blank")
-    val prompt: String,
-    val resetHistory: Boolean = false,
-)
-
-data class McpAgentResponse(
-    val success: Boolean,
-    val routeName: String?,
-    val requestedUrl: String?,
-    val apiBody: String?,
-    val llmMessage: String?,
-    // Human-readable text extracted from the LLM JSON envelope for UI consumption.
-    val userMessage: String?,
-    val routeDecisionReason: String?,
-    val resolvedArguments: Map<String, String>?,
-    val starterUserId: UUID,
-    val error: String?,
-)

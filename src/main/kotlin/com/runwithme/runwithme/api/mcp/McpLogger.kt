@@ -16,6 +16,7 @@ class McpLogger(
 ) {
     private val logFilePath: Path = Paths.get(properties.mcpLogFile)
     private val lock = ReentrantLock()
+    private val maxPayloadChars = 10_000
 
     init {
         val parent = logFilePath.parent
@@ -45,6 +46,81 @@ class McpLogger(
 
     fun logEvent(event: String, metadata: Map<String, Any?> = emptyMap()) {
         writeEntry(buildPrefix(null, event, metadata), "")
+    }
+
+    fun logExternalApiRequest(
+        routeName: String,
+        method: String,
+        url: String,
+        headers: Map<String, String> = emptyMap(),
+        body: String? = null,
+    ) {
+        val metadata =
+            linkedMapOf<String, Any?>(
+                "routeName" to routeName,
+                "method" to method,
+                "url" to url,
+                "bodyLength" to body?.length,
+            )
+        val headerLine = buildPrefix(null, "ExternalApiRequest", metadata)
+        val payload =
+            buildString {
+                if (headers.isNotEmpty()) {
+                    appendLine("headers=${headers.entries.joinToString { "${it.key}=${it.value}" }}")
+                }
+                if (!body.isNullOrBlank()) {
+                    append("body=").append(truncate(body))
+                }
+            }
+        writeEntry(headerLine, payload)
+    }
+
+    fun logExternalApiResponse(
+        routeName: String,
+        method: String,
+        url: String,
+        statusCode: Int,
+        body: String?,
+    ) {
+        val metadata =
+            linkedMapOf<String, Any?>(
+                "routeName" to routeName,
+                "method" to method,
+                "url" to url,
+                "statusCode" to statusCode,
+                "bodyLength" to body?.length,
+            )
+        val headerLine = buildPrefix(null, "ExternalApiResponse", metadata)
+        writeEntry(headerLine, body?.let { truncate(it) } ?: "<null body>")
+    }
+
+    fun logExternalApiError(
+        routeName: String,
+        method: String,
+        url: String,
+        statusCode: Int?,
+        errorMessage: String,
+        responseBody: String? = null,
+        throwable: Throwable? = null,
+    ) {
+        val metadata =
+            linkedMapOf<String, Any?>(
+                "routeName" to routeName,
+                "method" to method,
+                "url" to url,
+                "statusCode" to statusCode,
+            )
+        val headerLine = "${buildPrefix(null, "ExternalApiError", metadata)} message=$errorMessage"
+        val payload =
+            buildString {
+                if (!responseBody.isNullOrBlank()) {
+                    appendLine("responseBody=${truncate(responseBody)}")
+                }
+                if (throwable != null) {
+                    append(throwable.stackTraceToString())
+                }
+            }
+        writeEntry(headerLine, payload)
     }
 
     private fun buildPrefix(stage: GeminiLogStage?, label: String, metadata: Map<String, Any?>): String {
@@ -80,9 +156,11 @@ class McpLogger(
             )
         }
     }
-}
 
-enum class GeminiLogStage {
-    ROUTE_SELECTION,
-    ANSWER_GENERATION,
+    private fun truncate(value: String): String =
+        if (value.length <= maxPayloadChars) {
+            value
+        } else {
+            value.take(maxPayloadChars) + "...<truncated>"
+        }
 }
