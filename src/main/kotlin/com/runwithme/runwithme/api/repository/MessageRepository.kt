@@ -56,4 +56,10 @@ interface MessageRepository : JpaRepository<Message, Long> {
         recipientId: UUID, // Must be the authenticated user's ID
         messageIds: List<Long>,
     ): Int
+
+    fun findTopBySenderIdAndRecipientIdAndContentOrderByCreatedAtDesc(
+        senderId: UUID,
+        recipientId: UUID,
+        content: String,
+    ): Message?
 }
