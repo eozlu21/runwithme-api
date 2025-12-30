@@ -1,10 +1,13 @@
 package com.runwithme.runwithme.api.controller
 
+import com.runwithme.runwithme.api.dto.ChatEvent
 import com.runwithme.runwithme.api.dto.CreateMessageRequest
 import com.runwithme.runwithme.api.dto.MarkMessagesReadRequest
 import com.runwithme.runwithme.api.dto.MarkMessagesReadResponse
 import com.runwithme.runwithme.api.dto.MessageDto
+import com.runwithme.runwithme.api.dto.MessageType
 import com.runwithme.runwithme.api.dto.PageResponse
+import com.runwithme.runwithme.api.dto.UnreadCountResponse
 import com.runwithme.runwithme.api.service.MessageService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -48,9 +51,19 @@ import java.util.UUID
     
     **Message Flow:**
     1. Connect to WebSocket with JWT token
-    2. Subscribe to `/user/queue/messages` to receive incoming messages
+    2. Subscribe to `/user/queue/messages` to receive incoming ChatEvent objects
     3. Send messages via `/app/chat` - they will be saved to DB and delivered to recipient
     4. Use REST endpoints below to load chat history
+    
+    **ChatEvent Structure (WebSocket responses):**
+    All WebSocket messages are wrapped in a ChatEvent object:
+    - `type`: MessageType enum - "NEW_MESSAGE" or "READ_RECEIPT"
+    - `payload`: Event-specific data (MessageDto for NEW_MESSAGE, ReadReceiptPayload for READ_RECEIPT)
+    - `timestamp`: When the event was created
+    
+    **Event Types:**
+    - `NEW_MESSAGE`: A new chat message. Payload is MessageDto.
+    - `READ_RECEIPT`: Messages were marked as read. Payload is ReadReceiptPayload with messageIds array.
     """,
 )
 class ChatController(
@@ -70,6 +83,13 @@ class ChatController(
 
         val messageDto = messageService.sendMessage(principal.name, request)
 
+        // Wrap in ChatEvent for consistent WebSocket message format
+        val chatEvent =
+            ChatEvent(
+                type = MessageType.NEW_MESSAGE,
+                payload = messageDto,
+            )
+
         // Send to recipient
         if (messageDto.recipientUsername != null) {
             logger.info("Sending to recipient: ${messageDto.recipientUsername}")
@@ -87,7 +107,7 @@ class ChatController(
             messagingTemplate.convertAndSendToUser(
                 messageDto.recipientUsername,
                 "/queue/messages",
-                messageDto,
+                chatEvent,
             )
         }
 
@@ -96,7 +116,7 @@ class ChatController(
         messagingTemplate.convertAndSendToUser(
             principal.name,
             "/queue/messages",
-            messageDto,
+            chatEvent,
         )
     }
 
@@ -109,22 +129,41 @@ class ChatController(
                 "WebSocket if recipient is connected.",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Message sent successfully",
-                content = [Content(schema = Schema(implementation = MessageDto::class))],
-            ),
-            ApiResponse(responseCode = "401", description = "Unauthorized"),
-            ApiResponse(responseCode = "404", description = "Recipient not found"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Message sent successfully",
+                    content =
+                        [
+                            Content(
+                                schema =
+                                    Schema(
+                                        implementation =
+                                            MessageDto::class,
+                                    ),
+                            ),
+                        ],
+                ),
+                ApiResponse(responseCode = "401", description = "Unauthorized"),
+                ApiResponse(responseCode = "404", description = "Recipient not found"),
+            ],
     )
     fun sendMessageViaRest(
         @RequestBody request: CreateMessageRequest,
         authentication: Authentication,
     ): ResponseEntity<MessageDto> {
-        logger.info("Sending message via REST from ${authentication.name} to ${request.recipientId}")
+        logger.info(
+            "Sending message via REST from ${authentication.name} to ${request.recipientId}",
+        )
         val messageDto = messageService.sendMessage(authentication.name, request)
+
+        // Wrap in ChatEvent for consistent WebSocket message format
+        val chatEvent =
+            ChatEvent(
+                type = MessageType.NEW_MESSAGE,
+                payload = messageDto,
+            )
 
         // Try to deliver via WebSocket if recipient is connected
         if (messageDto.recipientUsername != null) {
@@ -133,9 +172,20 @@ class ChatController(
                 messagingTemplate.convertAndSendToUser(
                     messageDto.recipientUsername,
                     "/queue/messages",
-                    messageDto,
+                    chatEvent,
                 )
-                logger.info("Message also delivered via WebSocket to ${messageDto.recipientUsername}")
+                logger.info(
+                    "Message also delivered via WebSocket to ${messageDto.recipientUsername}",
+                )
+            }
+            // Also send to sender via WebSocket for consistency
+            val senderUser = simpUserRegistry.getUser(authentication.name)
+            if (senderUser != null) {
+                messagingTemplate.convertAndSendToUser(
+                    authentication.name,
+                    "/queue/messages",
+                    chatEvent,
+                )
             }
         }
 
@@ -145,39 +195,67 @@ class ChatController(
     @GetMapping("/api/v1/chat/history/{otherUserId}")
     @Operation(
         summary = "Get chat history with a specific user",
-        description = "Retrieves paginated message history between the authenticated user and another user. Messages are ordered by creation time (newest first).",
+        description =
+            "Retrieves paginated message history between the authenticated user and another user. Messages are ordered by creation time (newest first).",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Chat history retrieved successfully",
-                content = [Content(schema = Schema(implementation = PageResponse::class))],
-            ),
-            ApiResponse(responseCode = "401", description = "Unauthorized - invalid or missing token"),
-            ApiResponse(responseCode = "404", description = "User not found"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Chat history retrieved successfully",
+                    content =
+                        [
+                            Content(
+                                schema =
+                                    Schema(
+                                        implementation =
+                                            PageResponse::class,
+                                    ),
+                            ),
+                        ],
+                ),
+                ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized - invalid or missing token",
+                ),
+                ApiResponse(responseCode = "404", description = "User not found"),
+            ],
     )
     fun getChatHistory(
-        @Parameter(description = "UUID of the other user to get chat history with", required = true)
-        @PathVariable otherUserId: UUID,
+        @Parameter(
+            description = "UUID of the other user to get chat history with",
+            required = true,
+        )
+        @PathVariable
+        otherUserId: UUID,
         @Parameter(description = "Page number (0-indexed)", example = "0")
-        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "0")
+        page: Int,
         @Parameter(description = "Number of messages per page", example = "20")
-        @RequestParam(defaultValue = "20") size: Int,
+        @RequestParam(defaultValue = "20")
+        size: Int,
         authentication: Authentication,
-    ): ResponseEntity<PageResponse<MessageDto>> = ResponseEntity.ok(messageService.getChatHistory(authentication.name, otherUserId, page, size))
+    ): ResponseEntity<PageResponse<MessageDto>> =
+        ResponseEntity.ok(
+            messageService.getChatHistory(authentication.name, otherUserId, page, size),
+        )
 
     @GetMapping("/api/v1/chat/connected-users")
     @Operation(
         summary = "Get connected WebSocket users",
-        description = "Returns list of usernames currently connected via WebSocket. Useful for debugging real-time messaging.",
+        description =
+            "Returns list of usernames currently connected via WebSocket. Useful for debugging real-time messaging.",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(responseCode = "200", description = "List of connected usernames"),
-            ApiResponse(responseCode = "401", description = "Unauthorized"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "List of connected usernames",
+                ),
+                ApiResponse(responseCode = "401", description = "Unauthorized"),
+            ],
     )
     fun getConnectedUsers(): ResponseEntity<List<String>> {
         val users = simpUserRegistry.users.map { it.name }
@@ -188,25 +266,45 @@ class ChatController(
     @GetMapping("/api/v1/chat/history")
     @Operation(
         summary = "Get all chat messages for authenticated user",
-        description = "Retrieves all messages where the authenticated user is either sender or recipient. Can optionally filter to only show messages from friends.",
+        description =
+            "Retrieves all messages where the authenticated user is either sender or recipient. Can optionally filter to only show messages from friends.",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Messages retrieved successfully",
-                content = [Content(schema = Schema(implementation = PageResponse::class))],
-            ),
-            ApiResponse(responseCode = "401", description = "Unauthorized - invalid or missing token"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Messages retrieved successfully",
+                    content =
+                        [
+                            Content(
+                                schema =
+                                    Schema(
+                                        implementation =
+                                            PageResponse::class,
+                                    ),
+                            ),
+                        ],
+                ),
+                ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized - invalid or missing token",
+                ),
+            ],
     )
     fun getAllRelatedMessages(
         @Parameter(description = "Page number (0-indexed)", example = "0")
-        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "0")
+        page: Int,
         @Parameter(description = "Number of messages per page", example = "20")
-        @RequestParam(defaultValue = "20") size: Int,
-        @Parameter(description = "If true, only return messages from friends", example = "false")
-        @RequestParam(defaultValue = "false") friendsOnly: Boolean,
+        @RequestParam(defaultValue = "20")
+        size: Int,
+        @Parameter(
+            description = "If true, only return messages from friends",
+            example = "false",
+        )
+        @RequestParam(defaultValue = "false")
+        friendsOnly: Boolean,
         authentication: Authentication,
     ): ResponseEntity<PageResponse<MessageDto>> =
         ResponseEntity.ok(
@@ -221,24 +319,92 @@ class ChatController(
     @PostMapping("/api/v1/chat/read")
     @Operation(
         summary = "Mark messages as read",
-        description = "Marks the specified message IDs as read. Only messages where the authenticated user is the recipient can be marked as read.",
+        description =
+            "Marks the specified message IDs as read. Only messages where the authenticated user is the recipient can be marked as read.",
     )
     @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Messages marked as read",
-                content = [Content(schema = Schema(implementation = MarkMessagesReadResponse::class))],
-            ),
-            ApiResponse(responseCode = "401", description = "Unauthorized"),
-        ],
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Messages marked as read",
+                    content =
+                        [
+                            Content(
+                                schema =
+                                    Schema(
+                                        implementation =
+                                            MarkMessagesReadResponse::class,
+                                    ),
+                            ),
+                        ],
+                ),
+                ApiResponse(responseCode = "401", description = "Unauthorized"),
+            ],
     )
     fun markMessagesAsRead(
         @RequestBody request: MarkMessagesReadRequest,
         authentication: Authentication,
     ): ResponseEntity<MarkMessagesReadResponse> {
-        val updatedCount =
-            messageService.markMessagesAsRead(authentication.name, request.messageIds)
-        return ResponseEntity.ok(MarkMessagesReadResponse(updatedCount))
+        // Mark messages as read and get info for read receipt notifications
+        val result =
+            messageService.markMessagesAsReadWithNotification(
+                authentication.name,
+                request.messageIds,
+            )
+
+        // Send read receipt notifications to original senders via WebSocket
+        // Group by sender so each sender gets one notification with all their read message IDs
+        result.readReceiptsBySender.forEach { (senderUsername, payload) ->
+            val senderUser = simpUserRegistry.getUser(senderUsername)
+            if (senderUser != null) {
+                val readReceiptEvent =
+                    ChatEvent(
+                        type = MessageType.READ_RECEIPT,
+                        payload = payload,
+                    )
+                messagingTemplate.convertAndSendToUser(
+                    senderUsername,
+                    "/queue/messages",
+                    readReceiptEvent,
+                )
+                logger.info(
+                    "Sent read receipt to $senderUsername for messages: ${payload.messageIds}",
+                )
+            }
+        }
+
+        return ResponseEntity.ok(MarkMessagesReadResponse(result.updatedCount))
+    }
+
+    @GetMapping("/api/v1/chat/unread-count")
+    @Operation(
+        summary = "Get unread message count",
+        description =
+            "Returns the total count of unread messages for the authenticated user. Useful for displaying notification badges.",
+    )
+    @ApiResponses(
+        value =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Unread count retrieved successfully",
+                    content =
+                        [
+                            Content(
+                                schema =
+                                    Schema(
+                                        implementation =
+                                            UnreadCountResponse::class,
+                                    ),
+                            ),
+                        ],
+                ),
+                ApiResponse(responseCode = "401", description = "Unauthorized"),
+            ],
+    )
+    fun getUnreadCount(authentication: Authentication): ResponseEntity<UnreadCountResponse> {
+        val count = messageService.getUnreadCount(authentication.name)
+        return ResponseEntity.ok(UnreadCountResponse(count))
     }
 }
