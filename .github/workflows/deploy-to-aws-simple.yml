@@ -143,6 +143,7 @@ jobs:
               -e APP_BASE_URL="http://${{ secrets.EC2_HOST }}:8080" \
               -e MCP_GEMINI_API_KEY="${{ secrets.MCP_GEMINI_API_KEY }}" \
               -e MCP_EXTERNAL_API_BASE_URL="http://localhost:8080/" \
+              -e FIREBASE_CREDENTIALS_JSON="${{ secrets.FIREBASE_CREDENTIALS_JSON }}" \
               -e JAVA_OPTS="-Xms256m -Xmx512m" \
               ${{ env.CONTAINER_NAME }}:latest
 

@@ -76,6 +76,9 @@ dependencies {
     implementation(platform("software.amazon.awssdk:bom:2.21.0"))
     implementation("software.amazon.awssdk:s3")
 
+    // Firebase Admin SDK for push notifications
+    implementation("com.google.firebase:firebase-admin:9.2.0")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
 }

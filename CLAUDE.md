@@ -79,6 +79,7 @@ All code is under `com.runwithme.runwithme.api`:
 - **Feed**: Posts (TEXT, ROUTE, RUN_SESSION types), comments, likes
 - **Friendships**: Friend requests and confirmed friendships
 - **Chat**: Direct messaging via MongoDB
+- **Push Notifications**: Firebase Cloud Messaging for mobile/web push notifications (see `docs/PUSH_NOTIFICATIONS.md`)
 - **MCP Agent** (`mcp/`): General-purpose agent at `/api/v1/mcp/run` using Gemini for route selection and response generation. Maintains whitelist of allowed endpoints, validates selections, and forwards authenticated requests.
 
 ## Configuration
@@ -90,6 +91,7 @@ Environment variables (see `.env.example`):
 - `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` - Email service
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_LIGHTSAIL_BUCKET_NAME` - S3 storage
 - `MCP_EXTERNAL_API_BASE_URL`, `MCP_GEMINI_API_KEY`, `MCP_GEMINI_MODEL` - MCP agent configuration
+- `FIREBASE_ENABLED`, `FIREBASE_PROJECT_ID`, `FIREBASE_CREDENTIALS_PATH` - Push notifications (Firebase)
 
 ## API Documentation
 
