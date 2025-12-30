@@ -167,7 +167,7 @@ class GeminiClient(
             session.history.add(userContent)
             val systemText =
                 buildString {
-                    appendLine(session.systemInstruction)
+                    appendLine(session.config.systemInstruction)
                     if (!systemSupplement.isNullOrBlank()) {
                         appendLine(systemSupplement)
                     }
@@ -196,9 +196,7 @@ class GeminiClient(
             }
         val seededHistory = chatHistoryToGeminiHistory(chatHistory)
         return GeminiChatSession(
-            key = key,
             config = config,
-            systemInstruction = config.systemInstruction,
             history = seededHistory,
         )
     }
@@ -424,9 +422,7 @@ data class GeminiChatConfig(
 )
 
 data class GeminiChatSession(
-    val key: GeminiChatKey,
     val config: GeminiChatConfig,
-    val systemInstruction: String,
     val history: MutableList<GeminiContent>,
 )
 

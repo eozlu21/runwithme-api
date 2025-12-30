@@ -14,7 +14,7 @@ data class McpProperties(
     val mcpLogFile: String = "logs/mcp.log",
 ) {
     data class ResponseFilterProperties(
-        val enabled: Boolean,
-        val redactedFields: Set<String>,
+        val enabled: Boolean = false,
+        val redactedFields: Set<String> = emptySet(),
     )
 }
