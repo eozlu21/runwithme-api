@@ -25,10 +25,41 @@ class AdminController(
         private val LOCALHOST_ADDRESSES = setOf("127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "localhost")
     }
 
+    /**
+     * Check if the request is from a local/internal source.
+     * Allows:
+     * - Standard localhost addresses (127.0.0.1, ::1)
+     * - Docker internal networks (172.x.x.x, 10.x.x.x, 192.168.x.x)
+     * - Requests where remote and local address match (same machine)
+     */
     private fun isLocalRequest(request: HttpServletRequest): Boolean {
         val remoteAddr = request.remoteAddr
-        return remoteAddr in LOCALHOST_ADDRESSES
+        val localAddr = request.localAddr
+
+        // Standard localhost check
+        if (remoteAddr in LOCALHOST_ADDRESSES) {
+            return true
+        }
+
+        // Same machine check (request originated from the same host)
+        if (remoteAddr == localAddr) {
+            return true
+        }
+
+        // Docker/internal network ranges (private IP addresses)
+        if (isPrivateIpAddress(remoteAddr)) {
+            return true
+        }
+
+        return false
     }
+
+    private fun isPrivateIpAddress(ip: String): Boolean =
+        ip.startsWith("10.") ||
+            ip.startsWith("172.") ||
+            ip.startsWith("192.168.") ||
+            ip.startsWith("fc00:") ||
+            ip.startsWith("fd")
 
     @PostMapping("/similarity/recompute")
     @Operation(
