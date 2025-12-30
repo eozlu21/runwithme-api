@@ -74,8 +74,8 @@ mcp:
   external-api-base-url: ${MCP_EXTERNAL_API_BASE_URL:https://jsonplaceholder.typicode.com}
   gemini-model: ${MCP_GEMINI_MODEL:gemini-3-flash-preview}
   gemini-api-key: ${MCP_GEMINI_API_KEY:}
-  agent-username: ${MCP_AGENT_USERNAME:}
-  agent-user-id: ${MCP_AGENT_USER_ID:}
+  agent-username: ${MCP_AGENT_USERNAME:MCP}
+  agent-user-id: ${MCP_AGENT_USER_ID:b16e1f9b-893e-499e-897e-af901ebc58e0}
   agent-request-header: X-MCP-Agent
   response-filter:
     enabled: true

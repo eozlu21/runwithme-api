@@ -1,5 +1,6 @@
 package com.runwithme.runwithme.api.controller
 
+import com.runwithme.runwithme.api.service.FriendshipService
 import com.runwithme.runwithme.api.service.SimilarityPrecomputeService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -20,6 +21,7 @@ import java.util.UUID
 @Tag(name = "Admin", description = "Administrative endpoints for system management (localhost only)")
 class AdminController(
     private val similarityPrecomputeService: SimilarityPrecomputeService,
+    private val friendshipService: FriendshipService,
 ) {
     companion object {
         private val LOCALHOST_ADDRESSES = setOf("127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "localhost")
@@ -150,6 +152,109 @@ class AdminController(
             ),
         )
     }
+
+    // ============ MCP Friendship Operations ============
+
+    @PostMapping("/mcp/friend-all")
+    @Operation(
+        summary = "Make all users friends with MCP",
+        description = """
+            Creates friendships between all existing users and the MCP user.
+            Skips users who are already friends with MCP.
+            NOTE: This endpoint can only be called from localhost.
+            PREREQUISITE: A user with username 'MCP' must exist.
+        """,
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Operation completed successfully"),
+            ApiResponse(responseCode = "403", description = "Forbidden - not a local request"),
+            ApiResponse(responseCode = "404", description = "MCP user not found"),
+        ],
+    )
+    fun makeAllUsersFriendsWithMcp(request: HttpServletRequest): ResponseEntity<McpFriendshipResponse> {
+        if (!isLocalRequest(request)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                McpFriendshipResponse(
+                    success = false,
+                    message = "This endpoint can only be called from localhost",
+                    friendshipsCreated = 0,
+                ),
+            )
+        }
+
+        return try {
+            val count = friendshipService.makeAllUsersFriendsWithMcp()
+            ResponseEntity.ok(
+                McpFriendshipResponse(
+                    success = true,
+                    message = "Successfully made $count users friends with MCP",
+                    friendshipsCreated = count,
+                ),
+            )
+        } catch (e: NoSuchElementException) {
+            ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                McpFriendshipResponse(
+                    success = false,
+                    message = e.message ?: "MCP user not found",
+                    friendshipsCreated = 0,
+                ),
+            )
+        }
+    }
+
+    @PostMapping("/mcp/friend/{userId}")
+    @Operation(
+        summary = "Make a specific user friends with MCP",
+        description = """
+            Creates a friendship between the specified user and the MCP user.
+            Useful for automatically friending new users with MCP upon registration.
+            NOTE: This endpoint can only be called from localhost.
+            PREREQUISITE: A user with username 'MCP' must exist.
+        """,
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Operation completed successfully"),
+            ApiResponse(responseCode = "403", description = "Forbidden - not a local request"),
+            ApiResponse(responseCode = "404", description = "MCP user not found or user not found"),
+        ],
+    )
+    fun makeUserFriendsWithMcp(
+        @Parameter(description = "User ID to make friends with MCP")
+        @PathVariable
+        userId: UUID,
+        request: HttpServletRequest,
+    ): ResponseEntity<McpFriendshipResponse> {
+        if (!isLocalRequest(request)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                McpFriendshipResponse(
+                    success = false,
+                    message = "This endpoint can only be called from localhost",
+                    friendshipsCreated = 0,
+                ),
+            )
+        }
+
+        val created = friendshipService.makeFriendsWithMcp(userId)
+        return if (created) {
+            ResponseEntity.ok(
+                McpFriendshipResponse(
+                    success = true,
+                    message = "Successfully made user $userId friends with MCP",
+                    friendshipsCreated = 1,
+                ),
+            )
+        } else {
+            ResponseEntity.ok(
+                McpFriendshipResponse(
+                    success = true,
+                    message = "User $userId is already friends with MCP or MCP user not found",
+                    friendshipsCreated = 0,
+                ),
+            )
+        }
+    }
 }
 
 /**
@@ -161,4 +266,13 @@ data class SimilarityRecomputeResponse(
     val usersProcessed: Int,
     val pairsComputed: Int,
     val pairsFailed: Int,
+)
+
+/**
+ * Response DTO for MCP friendship operations
+ */
+data class McpFriendshipResponse(
+    val success: Boolean,
+    val message: String,
+    val friendshipsCreated: Int,
 )

@@ -25,6 +25,7 @@ class AuthService(
     private val jwtTokenProvider: JwtTokenProvider,
     private val authenticationManager: AuthenticationManager,
     private val emailService: EmailService,
+    private val friendshipService: FriendshipService,
 ) {
     @Transactional
     fun register(request: RegisterRequest): RegisterResponse {
@@ -121,6 +122,9 @@ class AuthService(
 
         user.emailVerified = true
         userRepository.save(user)
+
+        // Auto-friend the new user with MCP (silently fails if MCP user doesn't exist)
+        user.userId?.let { friendshipService.makeFriendsWithMcp(it) }
 
         // Keep token so user can click link again and see "already verified"
         // Token will be cleaned up when they request a new one (createVerificationToken deletes
