@@ -91,3 +91,19 @@ aws:
       access-key: ${AWS_ACCESS_KEY_ID:AKIAVSIAYC6V4GQDS5TS}
       secret-key: ${AWS_SECRET_ACCESS_KEY}
       endpoint: ${AWS_LIGHTSAIL_BUCKET_ENDPOINT:}
+
+# Route Similarity ML Configuration
+similarity:
+  python-path: ${PYTHON_PATH:python3}
+  inference-script-dir: ${INFERENCE_SCRIPT_DIR:}
+  embeddings-dir: ${EMBEDDINGS_DIR:classpath:data}
+
+# Firebase Configuration for Push Notifications
+firebase:
+  enabled: true
+  project-id: runwithme-ebd85
+  credentials:
+    # Option 1: Path to service account JSON file
+    path: ${FIREBASE_CREDENTIALS_PATH:}
+    # Option 2: JSON string (for environment variables/secrets)
+    json: ${FIREBASE_CREDENTIALS_JSON:}
