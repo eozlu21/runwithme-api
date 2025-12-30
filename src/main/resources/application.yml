@@ -104,7 +104,7 @@ similarity:
 # Firebase Configuration for Push Notifications
 firebase:
   enabled: true
-  project-id: runwithme-ebd85
+  project-id: runwithme-eb52d
   credentials:
     # Path to service account JSON file (mounted in Docker or local path)
     path: ${FIREBASE_CREDENTIALS_PATH:}
