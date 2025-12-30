@@ -54,13 +54,13 @@ class UserRecommendationService(
         val requestingSurvey = getLatestSurvey(requestingUserId)
         val requestingRoutes = routeRepository.findByCreatorId(requestingUserId)
 
-        // Step 2: Get friend IDs to exclude
+        // Step 2: Get friend IDs to indicate friendship status
         val friendIds = friendshipRepository.findFriendIds(requestingUserId).toSet()
 
-        // Step 3: Find candidate users based on filters
+        // Step 3: Find candidate users based on filters (no longer excluding friends)
         val candidates =
             findCandidates(requestingProfile, requestingSurvey, locationLevel)
-                .filter { it.userId != requestingUserId && it.userId !in friendIds }
+                .filter { it.userId != requestingUserId }
 
         // Step 4: Filter by schedule compatibility
         val scheduleFilteredCandidates = filterByScheduleCompatibility(candidates, requestingSurvey)
@@ -74,6 +74,7 @@ class UserRecommendationService(
                         requestingRoutes,
                         requestingSurvey,
                         candidateProfile,
+                        friendIds,
                     )
                 }.sortedByDescending { it.combinedScore }
 
@@ -225,6 +226,7 @@ class UserRecommendationService(
         requestingRoutes: List<Route>,
         requestingSurvey: SurveyResponse?,
         candidateProfile: UserProfile,
+        friendIds: Set<UUID>,
     ): UserRecommendationDto? {
         val candidateUserId = candidateProfile.userId ?: return null
         val candidateUser = userRepository.findById(candidateUserId).orElse(null) ?: return null
@@ -251,6 +253,7 @@ class UserRecommendationService(
             routePairCount = requestingRoutes.size * candidateRoutes.size,
             hasRoutes = candidateRoutes.isNotEmpty(),
             hasSurvey = candidateSurvey != null,
+            isFriend = candidateUserId in friendIds,
         )
     }
 

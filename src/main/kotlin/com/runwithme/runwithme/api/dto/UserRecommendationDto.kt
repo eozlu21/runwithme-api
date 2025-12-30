@@ -30,6 +30,8 @@ data class UserRecommendationDto(
     val hasRoutes: Boolean,
     @Schema(description = "Whether this user has completed the survey")
     val hasSurvey: Boolean,
+    @Schema(description = "Whether this user is already a friend")
+    val isFriend: Boolean,
 )
 
 @Schema(description = "Detailed similarity breakdown with another user")
