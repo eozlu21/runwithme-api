@@ -16,7 +16,8 @@ class McpLogger(
 ) {
     private val logFilePath: Path = Paths.get(properties.mcpLogFile)
     private val lock = ReentrantLock()
-    private val maxPayloadChars = 10_000
+    private val maxPayloadChars = 2_000
+    private val maxMetadataValueChars = 200
 
     init {
         val parent = logFilePath.parent
@@ -30,18 +31,18 @@ class McpLogger(
 
     fun logGeminiRequest(stage: GeminiLogStage, payload: String, metadata: Map<String, Any?> = emptyMap()) {
         val prefix = buildPrefix(stage, "GeminiRequest", metadata)
-        val body = payload.ifEmpty { "<empty payload>" }
+        val body = payload.ifEmpty { "<empty payload>" }.let { truncate(it) }
         writeEntry(prefix, body)
     }
 
     fun logGeminiResponse(stage: GeminiLogStage, payload: String?, metadata: Map<String, Any?> = emptyMap()) {
         val prefix = buildPrefix(stage, "GeminiResponse", metadata)
-        writeEntry(prefix, payload ?: "<null payload>")
+        writeEntry(prefix, payload?.let { truncate(it) } ?: "<null payload>")
     }
 
     fun logGeminiError(stage: GeminiLogStage, message: String, metadata: Map<String, Any?> = emptyMap(), throwable: Throwable? = null) {
         val errorLine = "${buildPrefix(stage, "GeminiError", metadata)} message=$message"
-        writeEntry(errorLine, throwable?.stackTraceToString())
+        writeEntry(errorLine, throwable?.stackTraceToString()?.let { truncate(it) })
     }
 
     fun logEvent(event: String, metadata: Map<String, Any?> = emptyMap()) {
@@ -130,7 +131,7 @@ class McpLogger(
             builder.append("|stage=").append(stage.name)
         }
         if (metadata.isNotEmpty()) {
-            builder.append("|meta=").append(metadata.entries.joinToString { "${it.key}=${it.value}" })
+            builder.append("|meta=").append(metadata.entries.joinToString { "${it.key}=${sanitizeMetadataValue(it.value)}" })
         }
         return builder.toString()
     }
@@ -163,4 +164,14 @@ class McpLogger(
         } else {
             value.take(maxPayloadChars) + "...<truncated>"
         }
+
+    private fun sanitizeMetadataValue(value: Any?): String {
+        val raw = value?.toString() ?: "null"
+        val singleLine = raw.replace("\r", "\\r").replace("\n", "\\n")
+        return if (singleLine.length <= maxMetadataValueChars) {
+            singleLine
+        } else {
+            singleLine.take(maxMetadataValueChars) + "...<truncated>"
+        }
+    }
 }

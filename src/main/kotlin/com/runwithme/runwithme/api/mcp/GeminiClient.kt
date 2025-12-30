@@ -79,7 +79,12 @@ class GeminiClient(
                 objectMapper.readValue(sanitizedResponse, RouteSelectionPayload::class.java)
             } catch (ex: Exception) {
                 val extractedReason = extractJsonStringValue(sanitizedResponse, "reason")?.takeIf { it.isNotBlank() }
-                val errorMetadata = selectionMetadata + mapOf("rawResponse" to sanitizedResponse)
+                val errorMetadata =
+                    selectionMetadata +
+                        mapOf(
+                            "rawResponseLength" to sanitizedResponse.length,
+                            "rawResponsePreview" to sanitizedResponse.take(300),
+                        )
                 mcpLogger.logGeminiError(
                     GeminiLogStage.ROUTE_SELECTION,
                     "Route selection JSON parse failed: ${ex.message}",
@@ -250,16 +255,45 @@ class GeminiClient(
             try {
                 objectMapper.readValue(responseBody, GeminiResponse::class.java)
             } catch (ex: Exception) {
-                mcpLogger.logGeminiError(stage, "Gemini response was not valid JSON: ${ex.message}", metadata + mapOf("rawResponse" to responseBody), ex)
+                mcpLogger.logGeminiError(
+                    stage,
+                    "Gemini response was not valid JSON: ${ex.message}",
+                    metadata +
+                        mapOf(
+                            "rawResponseLength" to responseBody.length,
+                            "rawResponsePreview" to responseBody.take(300),
+                        ),
+                    ex,
+                )
                 return GeminiCallResult(text = null, error = "Gemini response could not be read.")
             }
         val text = response.allText()
         return if (!text.isNullOrBlank()) {
-            mcpLogger.logGeminiResponse(stage, text, metadata)
+            val extra =
+                if (stage == GeminiLogStage.ANSWER_GENERATION) {
+                    val summary =
+                        try {
+                            objectMapper.readTree(text).path("data").path("summary").asText(null)
+                        } catch (_: Exception) {
+                            null
+                        }
+                    summary?.takeIf { it.isNotBlank() }?.let { mapOf("summaryPreview" to it.take(160)) } ?: emptyMap()
+                } else {
+                    emptyMap()
+                }
+            mcpLogger.logGeminiResponse(stage, text, metadata + extra)
             GeminiCallResult(text = text, error = null)
         } else {
             val errorMessage = "Gemini response could not be read."
-            mcpLogger.logGeminiError(stage, errorMessage, metadata + mapOf("rawResponse" to responseBody))
+            mcpLogger.logGeminiError(
+                stage,
+                errorMessage,
+                metadata +
+                    mapOf(
+                        "rawResponseLength" to responseBody.length,
+                        "rawResponsePreview" to responseBody.take(300),
+                    ),
+            )
             GeminiCallResult(text = null, error = errorMessage)
         }
     }
