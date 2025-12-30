@@ -68,6 +68,9 @@ logging:
   level:
     com.runwithme.runwithme.api.config.RequestLoggingInterceptor: INFO
     org.springframework.web: INFO
+    com.runwithme.runwithme.api.mcp: INFO
+    org.hibernate: WARN
+    org.hibernate.SQL: WARN
 
 # MCP Configuration
 mcp:
