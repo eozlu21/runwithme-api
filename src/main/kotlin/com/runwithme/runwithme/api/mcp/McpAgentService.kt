@@ -33,6 +33,8 @@ class McpAgentService(
         authorizationHeader: String?,
         starterUserId: UUID,
         starterUsername: String,
+        persistUserPrompt: Boolean = true,
+        persistAgentReply: Boolean = true,
     ): McpAgentResponse {
         val requestId = UUID.randomUUID()
         val agentIdentity = resolveAgentIdentity()
@@ -44,11 +46,13 @@ class McpAgentService(
             } else {
                 loadChatHistory(starterUserId, agentIdentity)
             }
-        recordChatMessage(
-            senderUsername = starterUsername,
-            recipientId = agentIdentity.userId,
-            content = request.prompt,
-        )
+        if (persistUserPrompt) {
+            recordChatMessage(
+                senderUsername = starterUsername,
+                recipientId = agentIdentity.userId,
+                content = request.prompt,
+            )
+        }
         val availableRoutes = promptRouter.routes()
         val decision =
             geminiClient.selectRoute(
@@ -59,7 +63,11 @@ class McpAgentService(
                 requestId = requestId,
             )
         val historyWithCurrentUser =
-            priorHistory + McpConversationTurn(McpConversationRole.USER, request.prompt)
+            if (priorHistory.lastOrNull()?.let { it.role == McpConversationRole.USER && it.content == request.prompt } == true) {
+                priorHistory
+            } else {
+                priorHistory + McpConversationTurn(McpConversationRole.USER, request.prompt)
+            }
         val selectedRouteName = decision.routeName?.trim()
         if (selectedRouteName.isNullOrBlank()) {
             val errorMessage = decision.reason ?: "Gemini could not select any route."
@@ -78,6 +86,7 @@ class McpAgentService(
                 ),
                 starterUserId,
                 agentIdentity,
+                persistResponse = persistAgentReply,
             )
         }
         if (selectedRouteName.equals(GeminiClient.NO_MATCH_ROUTE, ignoreCase = true)) {
@@ -117,6 +126,7 @@ class McpAgentService(
                     ),
                     starterUserId,
                     agentIdentity,
+                    persistResponse = persistAgentReply,
                 )
 
         val resolvedRoute =
@@ -139,6 +149,7 @@ class McpAgentService(
                     ),
                     starterUserId,
                     agentIdentity,
+                    persistResponse = persistAgentReply,
                 )
             }
 
@@ -176,6 +187,7 @@ class McpAgentService(
                 ),
                 starterUserId,
                 agentIdentity,
+                persistResponse = persistAgentReply,
             )
         } catch (ex: ExternalApiCallException) {
             val customMessage = resolveCustomErrorMessage(route, ex, decision.arguments)
@@ -207,6 +219,7 @@ class McpAgentService(
                 ),
                 starterUserId,
                 agentIdentity,
+                persistResponse = persistAgentReply,
             )
         } catch (ex: IllegalStateException) {
             respondWithAgentMessage(
@@ -224,6 +237,7 @@ class McpAgentService(
                 ),
                 starterUserId,
                 agentIdentity,
+                persistResponse = persistAgentReply,
             )
         }
     }
