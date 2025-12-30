@@ -168,8 +168,7 @@ class McpPromptRouter {
 
     fun routes(): List<McpRoute> = availableRoutes
 
-    fun routeByName(name: String): McpRoute? =
-        availableRoutes.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    fun routeByName(name: String): McpRoute? = availableRoutes.firstOrNull { it.name.equals(name, ignoreCase = true) }
 }
 
 data class McpRoute(

@@ -234,7 +234,10 @@ class McpAgentService(
         geminiClient.resetChatSessions(starterUserId)
     }
 
-    private fun resolveRoute(route: McpRoute, arguments: Map<String, String>?): ResolvedRoute {
+    private fun resolveRoute(
+        route: McpRoute,
+        arguments: Map<String, String>?,
+    ): ResolvedRoute {
         var path = route.pathTemplate
         val queryParameters = mutableListOf<Pair<String, String>>()
         val bodyParameters = linkedMapOf<String, String>()
@@ -304,7 +307,10 @@ class McpAgentService(
         return renderTemplate(template, arguments)
     }
 
-    private fun renderTemplate(template: String, arguments: Map<String, String>?): String {
+    private fun renderTemplate(
+        template: String,
+        arguments: Map<String, String>?,
+    ): String {
         if (arguments.isNullOrEmpty()) {
             return template
         }

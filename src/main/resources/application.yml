@@ -69,6 +69,16 @@ logging:
     com.runwithme.runwithme.api.config.RequestLoggingInterceptor: INFO
     org.springframework.web: INFO
 
+# MCP Configuration
+mcp:
+  external-api-base-url: ${MCP_EXTERNAL_API_BASE_URL:https://jsonplaceholder.typicode.com}
+  gemini-model: ${MCP_GEMINI_MODEL:gemini-3-flash-preview}
+  gemini-api-key: ${MCP_GEMINI_API_KEY:}
+  agent-request-header: X-MCP-Agent
+  response-filter:
+    enabled: true
+    redacted-fields: createdAt,userId,created at,email,emailVerified,receiverId,requestId
+
 # AWS Lightsail Bucket Configuration
 aws:
   lightsail:
