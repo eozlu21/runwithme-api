@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.servlet.http.HttpServletRequest
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -15,28 +17,50 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/admin")
-@Tag(name = "Admin", description = "Administrative endpoints for system management")
+@Tag(name = "Admin", description = "Administrative endpoints for system management (localhost only)")
 class AdminController(
     private val similarityPrecomputeService: SimilarityPrecomputeService,
 ) {
+    companion object {
+        private val LOCALHOST_ADDRESSES = setOf("127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "localhost")
+    }
+
+    private fun isLocalRequest(request: HttpServletRequest): Boolean {
+        val remoteAddr = request.remoteAddr
+        return remoteAddr in LOCALHOST_ADDRESSES
+    }
+
     @PostMapping("/similarity/recompute")
     @Operation(
         summary = "Recompute all similarity scores",
         description = """
             Triggers a full recomputation of similarity scores for all user pairs.
-            This is a long-running operation. The weekly scheduled task calls this automatically.
+            This is a long-running operation. The daily scheduled task calls this automatically.
 
             WARNING: This clears the existing cache and recomputes everything.
+            NOTE: This endpoint can only be called from localhost.
         """,
     )
     @ApiResponses(
         value = [
             ApiResponse(responseCode = "200", description = "Recomputation completed successfully"),
-            ApiResponse(responseCode = "401", description = "Unauthorized"),
+            ApiResponse(responseCode = "403", description = "Forbidden - not a local request"),
             ApiResponse(responseCode = "500", description = "Recomputation failed"),
         ],
     )
-    fun recomputeAllSimilarities(): ResponseEntity<SimilarityRecomputeResponse> {
+    fun recomputeAllSimilarities(request: HttpServletRequest): ResponseEntity<SimilarityRecomputeResponse> {
+        if (!isLocalRequest(request)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                SimilarityRecomputeResponse(
+                    success = false,
+                    message = "This endpoint can only be called from localhost",
+                    usersProcessed = 0,
+                    pairsComputed = 0,
+                    pairsFailed = 0,
+                ),
+            )
+        }
+
         val result = similarityPrecomputeService.computeAllSimilarities()
         return ResponseEntity.ok(
             SimilarityRecomputeResponse(
@@ -55,12 +79,13 @@ class AdminController(
         description = """
             Triggers recomputation of similarity scores for a specific user with all other users.
             Useful when a user updates their profile/routes significantly.
+            NOTE: This endpoint can only be called from localhost.
         """,
     )
     @ApiResponses(
         value = [
             ApiResponse(responseCode = "200", description = "Recomputation completed successfully"),
-            ApiResponse(responseCode = "401", description = "Unauthorized"),
+            ApiResponse(responseCode = "403", description = "Forbidden - not a local request"),
             ApiResponse(responseCode = "404", description = "User not found"),
             ApiResponse(responseCode = "500", description = "Recomputation failed"),
         ],
@@ -69,7 +94,20 @@ class AdminController(
         @Parameter(description = "User ID to recompute similarities for")
         @PathVariable
         userId: UUID,
+        request: HttpServletRequest,
     ): ResponseEntity<SimilarityRecomputeResponse> {
+        if (!isLocalRequest(request)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                SimilarityRecomputeResponse(
+                    success = false,
+                    message = "This endpoint can only be called from localhost",
+                    usersProcessed = 0,
+                    pairsComputed = 0,
+                    pairsFailed = 0,
+                ),
+            )
+        }
+
         val result = similarityPrecomputeService.computeSimilaritiesForUser(userId)
         return ResponseEntity.ok(
             SimilarityRecomputeResponse(
