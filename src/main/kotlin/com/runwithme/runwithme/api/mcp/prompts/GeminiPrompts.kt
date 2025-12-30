@@ -34,13 +34,11 @@ object GeminiPrompts {
     /**
      * User prompt for the route selection stage.
      *
-     * Provides minimal context (starter user id + user request) to help the model choose a route.
+     * Sends only the raw user request to avoid duplicating metadata inside Gemini `contents`.
+     * Starter user id (and other metadata) should be passed via logs/metadata, not as part of the model prompt.
      */
     fun routeSelectionUserPrompt(starterUserId: UUID, prompt: String): String =
-        buildString {
-            appendLine("Starter user ID: $starterUserId")
-            appendLine("User prompt: $prompt")
-        }
+        prompt.trim()
 
     /**
      * Supplemental text for the route selection stage that contains the allow-list.

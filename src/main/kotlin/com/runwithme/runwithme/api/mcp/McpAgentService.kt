@@ -53,12 +53,13 @@ class McpAgentService(
             )
         }
         val availableRoutes = promptRouter.routes()
+        val routeSelectionHistory = priorHistory.takeLast(2)
         val decision =
             geminiClient.selectRoute(
                 request.prompt,
                 availableRoutes,
                 starterUserId,
-                priorHistory,
+                routeSelectionHistory,
                 requestId = requestId,
             )
         val historyWithCurrentUser =
@@ -67,6 +68,7 @@ class McpAgentService(
             } else {
                 priorHistory + McpConversationTurn(McpConversationRole.USER, request.prompt)
             }
+        val answerHistory = historyWithCurrentUser.takeLast(5)
         val selectedRouteName = decision.routeName?.trim()
         if (selectedRouteName.isNullOrBlank() || selectedRouteName.equals(GeminiClient.NO_MATCH_ROUTE, ignoreCase = true)) {
             val noMatchContext =
@@ -80,7 +82,7 @@ class McpAgentService(
                     routeDescription = "No matching action",
                     apiBody = noMatchContext,
                     starterUserId = starterUserId,
-                    chatHistory = historyWithCurrentUser,
+                    chatHistory = answerHistory,
                     routeArguments = decision.arguments,
                     requestId = requestId,
                 )
@@ -165,7 +167,7 @@ class McpAgentService(
                     routeDescription = route.description,
                     apiBody = apiResult.body,
                     starterUserId = starterUserId,
-                    chatHistory = historyWithCurrentUser,
+                    chatHistory = answerHistory,
                     routeArguments = decision.arguments,
                     requestId = requestId,
                 )
@@ -202,6 +204,46 @@ class McpAgentService(
             val errorMessage =
                 finalMessage
                     ?: "`${route.name}` call failed: HTTP ${ex.statusCode ?: "?"}"
+
+            if (ex.statusCode == HttpStatus.NOT_FOUND.value()) {
+                val summary = finalMessage ?: "Resource not found."
+                val payload =
+                    buildSchemaEnvelope(
+                        type = "error",
+                        summary = summary,
+                        metadata =
+                            mapOf(
+                                "routeName" to route.name,
+                                "url" to ex.url,
+                                "statusCode" to ex.statusCode.toString(),
+                            ),
+                        errors =
+                            listOf(
+                                mapOf(
+                                    "code" to "NOT_FOUND",
+                                    "message" to summary,
+                                    "details" to (ex.responseBody ?: ""),
+                                ),
+                            ),
+                    )
+                return respondWithAgentMessage(
+                    McpAgentResponse(
+                        success = false,
+                        routeName = route.name,
+                        requestedUrl = ex.url,
+                        apiBody = ex.responseBody,
+                        llmMessage = payload,
+                        userMessage = summary,
+                        routeDecisionReason = decision.reason,
+                        resolvedArguments = decision.arguments,
+                        starterUserId = starterUserId,
+                        error = summary,
+                    ),
+                    starterUserId,
+                    agentIdentity,
+                    persistResponse = persistAgentReply,
+                )
+            }
             respondWithAgentMessage(
                 McpAgentResponse(
                     success = false,
@@ -459,4 +501,31 @@ class McpAgentService(
 
     private fun defaultNoMatchMessage(): String =
         "I can't turn that into an action right now. I'm the RunWithMe assistant; I can help with certain in-app actions and information."
+
+    private fun buildSchemaEnvelope(
+        type: String,
+        summary: String,
+        metadata: Map<String, String> = emptyMap(),
+        errors: List<Map<String, String>> = emptyList(),
+    ): String =
+        try {
+            val metadataList =
+                metadata.entries
+                    .filter { it.key.isNotBlank() && it.value.isNotBlank() }
+                    .map { mapOf("key" to it.key, "value" to it.value) }
+            objectMapper.writeValueAsString(
+                mapOf(
+                    "type" to type,
+                    "data" to
+                        mapOf(
+                            "summary" to summary,
+                            "highlights" to emptyList<String>(),
+                            "metadata" to metadataList,
+                        ),
+                    "errors" to errors,
+                ),
+            )
+        } catch (ex: Exception) {
+            """{"type":"error","data":{"summary":"$summary","highlights":[],"metadata":[]},"errors":[]}"""
+        }
 }
