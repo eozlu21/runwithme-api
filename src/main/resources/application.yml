@@ -74,10 +74,13 @@ mcp:
   external-api-base-url: ${MCP_EXTERNAL_API_BASE_URL:https://jsonplaceholder.typicode.com}
   gemini-model: ${MCP_GEMINI_MODEL:gemini-3-flash-preview}
   gemini-api-key: ${MCP_GEMINI_API_KEY:}
+  agent-username: ${MCP_AGENT_USERNAME:}
+  agent-user-id: ${MCP_AGENT_USER_ID:}
   agent-request-header: X-MCP-Agent
   response-filter:
     enabled: true
     redacted-fields: createdAt,userId,created at,email,emailVerified,receiverId,requestId
+  mcp-log-file: ${MCP_LOG_FILE:logs/mcp.log}
 
 # AWS Lightsail Bucket Configuration
 aws:
@@ -88,10 +91,3 @@ aws:
       access-key: ${AWS_ACCESS_KEY_ID:AKIAVSIAYC6V4GQDS5TS}
       secret-key: ${AWS_SECRET_ACCESS_KEY}
       endpoint: ${AWS_LIGHTSAIL_BUCKET_ENDPOINT:}
-
-# Route Similarity ML Configuration
-similarity:
-  python-path: ${PYTHON_PATH:python3}
-  inference-script-dir: ${INFERENCE_SCRIPT_DIR:}
-  embeddings-dir: ${EMBEDDINGS_DIR:classpath:data}
-

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
-import org.slf4j.LoggerFactory
 import org.springframework.core.MethodParameter
 import org.springframework.http.MediaType
 import org.springframework.http.converter.HttpMessageConverter
@@ -21,8 +20,6 @@ class McpResponseFilterAdvice(
     private val objectMapper: ObjectMapper,
     private val properties: McpProperties,
 ) : ResponseBodyAdvice<Any> {
-    private val logger = LoggerFactory.getLogger(McpResponseFilterAdvice::class.java)
-
     private val redactedFieldNames: Set<String>
         get() =
             properties.responseFilter.redactedFields
@@ -49,7 +46,6 @@ class McpResponseFilterAdvice(
             try {
                 toJsonNode(body)
             } catch (ex: Exception) {
-                logger.warn("Unable to sanitize MCP response payload: {}", ex.message)
                 return body
             }
         val fieldsToRedact = redactedFieldNames
