@@ -146,8 +146,7 @@ class McpController(
             entityManager
                 .createQuery(
                     "UPDATE Message m SET m.isRead = true WHERE m.recipientId = :recipientId AND m.isRead = false",
-                )
-                .setParameter("recipientId", agent.userId)
+                ).setParameter("recipientId", agent.userId)
                 .executeUpdate()
 
         return ResponseEntity.ok(
