@@ -87,10 +87,8 @@ class McpAgentService(
                     routeArguments = decisionArguments,
                     requestId = requestId,
                 )
-            val extracted = extractUserMessageFromEnvelope(llmText)
             val userMessage =
-                extracted
-                    ?: llmText.takeUnless { it.trimStart().startsWith("{") }
+                extractUserMessageFromEnvelope(llmText)
                     ?: defaultNoMatchMessage()
             return respondWithAgentMessage(
                 McpAgentResponse(
@@ -172,7 +170,9 @@ class McpAgentService(
                     routeArguments = decisionArguments,
                     requestId = requestId,
                 )
-            val userMessage = extractUserMessageFromEnvelope(llmText)
+            val userMessage =
+                extractUserMessageFromEnvelope(llmText)
+                    ?: "I received your request but had trouble formatting the response. Please try again."
             respondWithAgentMessage(
                 McpAgentResponse(
                     success = true,

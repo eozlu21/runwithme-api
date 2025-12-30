@@ -16,8 +16,8 @@ class McpLogger(
 ) {
     private val logFilePath: Path = Paths.get(properties.mcpLogFile)
     private val lock = ReentrantLock()
-    private val maxPayloadChars = 2_000
-    private val maxMetadataValueChars = 200
+    private val maxPayloadChars = 10_000
+    private val maxMetadataValueChars = 2_000
 
     init {
         val parent = logFilePath.parent
