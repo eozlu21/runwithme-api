@@ -9,10 +9,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         # dialect: org.hibernate.dialect.PostgreSQLDialect
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
@@ -69,8 +69,14 @@ logging:
     com.runwithme.runwithme.api.config.RequestLoggingInterceptor: INFO
     org.springframework.web: INFO
     com.runwithme.runwithme.api.mcp: INFO
+    # Similarity computation debug logging (set to DEBUG to see progress)
+    com.runwithme.runwithme.api.service.SimilarityPrecomputeService: DEBUG
+    com.runwithme.runwithme.api.service.RouteSimilarityService: DEBUG
+    # Hibernate logging completely disabled
     org.hibernate: WARN
-    org.hibernate.SQL: WARN
+    org.hibernate.SQL: OFF
+    org.hibernate.type.descriptor.sql: OFF
+    org.hibernate.stat: OFF
 
 # MCP Configuration
 mcp:

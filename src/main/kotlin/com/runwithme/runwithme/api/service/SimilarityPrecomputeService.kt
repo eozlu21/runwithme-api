@@ -36,7 +36,10 @@ class SimilarityPrecomputeService(
         const val PREFERENCE_WEIGHT = 0.5
         const val DEFAULT_ROUTE_SIMILARITY_BASELINE = 50.0
         const val BATCH_SIZE = 100
+        const val PROGRESS_LOG_INTERVAL = 10 // Log progress every N pairs
     }
+
+    private fun Double.format(decimals: Int) = "%.${decimals}f".format(this)
 
     /**
      * Recompute all similarity scores for all user pairs.
@@ -46,17 +49,22 @@ class SimilarityPrecomputeService(
      */
     @Transactional
     fun computeAllSimilarities(): ComputationResult {
+        logger.debug("=== SIMILARITY COMPUTATION START ===")
         logger.info("Starting full similarity precomputation...")
         val startTime = System.currentTimeMillis()
 
         // Step 1: Clear existing cache
+        logger.debug("Step 1: Clearing existing similarity cache...")
         userSimilarityCacheRepository.deleteAllEntries()
         logger.info("Cleared existing similarity cache")
 
         // Step 2: Get all user IDs
+        logger.debug("Step 2: Loading all user IDs...")
         val allUserIds: List<UUID> = userRepository.findAll().mapNotNull { it.userId }
         val totalUsers = allUserIds.size
+        val totalPairs = (totalUsers.toLong() * (totalUsers - 1)) / 2
         logger.info("Found $totalUsers users to process")
+        logger.debug("Total pairs to compute: $totalPairs")
 
         if (totalUsers < 2) {
             logger.info("Not enough users for similarity computation")
@@ -64,10 +72,20 @@ class SimilarityPrecomputeService(
         }
 
         // Step 3: Preload all routes and surveys into maps for efficiency
+        logger.debug("Step 3: Preloading routes for all users...")
+        val routeLoadStart = System.currentTimeMillis()
         val routesByUser = preloadRoutesByUser(allUserIds)
-        val surveysByUser = preloadSurveysByUser(allUserIds)
+        val totalRoutes = routesByUser.values.sumOf { it.size }
+        logger.debug("Loaded routes for $totalUsers users ($totalRoutes total routes) in ${System.currentTimeMillis() - routeLoadStart}ms")
 
-        // Step 4: Compute similarities for all unique pairs
+        logger.debug("Step 4: Preloading surveys for all users...")
+        val surveyLoadStart = System.currentTimeMillis()
+        val surveysByUser = preloadSurveysByUser(allUserIds)
+        val usersWithSurveys = surveysByUser.values.count { it != null }
+        logger.debug("Loaded surveys for $usersWithSurveys/$totalUsers users in ${System.currentTimeMillis() - surveyLoadStart}ms")
+
+        // Step 5: Compute similarities for all unique pairs
+        logger.debug("Step 5: Computing similarities for all user pairs...")
         var pairsComputed = 0
         var pairsFailed = 0
         val cacheEntries = mutableListOf<UserSimilarityCache>()
@@ -78,6 +96,9 @@ class SimilarityPrecomputeService(
                 val userId2 = allUserIds[j]
 
                 try {
+                    logger.trace("Computing pair: $userId1 <-> $userId2")
+                    val pairStart = System.currentTimeMillis()
+
                     val similarity =
                         computePairSimilarity(
                             userId1,
@@ -91,8 +112,28 @@ class SimilarityPrecomputeService(
                     cacheEntries.add(similarity)
                     pairsComputed++
 
+                    logger.trace(
+                        "Pair $userId1 <-> $userId2: route=${similarity.routeSimilarity.format(2)}%, " +
+                            "pref=${similarity.preferenceSimilarity.format(2)}%, combined=${similarity.combinedScore.format(2)}% " +
+                            "(${System.currentTimeMillis() - pairStart}ms)",
+                    )
+
+                    // Log progress with ETA
+                    if (pairsComputed == 1 || pairsComputed % PROGRESS_LOG_INTERVAL == 0) {
+                        val elapsed = System.currentTimeMillis() - startTime
+                        val pairsPerSecond = if (elapsed > 0) pairsComputed * 1000.0 / elapsed else 0.0
+                        val remainingPairs = totalPairs - pairsComputed
+                        val etaSeconds = if (pairsPerSecond > 0) remainingPairs / pairsPerSecond else 0.0
+                        val progressPercent = (pairsComputed * 100.0 / totalPairs).format(1)
+                        logger.debug(
+                            "Progress: $pairsComputed/$totalPairs pairs ($progressPercent%) | " +
+                                "Speed: ${pairsPerSecond.format(2)} pairs/sec | ETA: ${etaSeconds.format(0)}s",
+                        )
+                    }
+
                     // Batch save to avoid memory issues
                     if (cacheEntries.size >= BATCH_SIZE) {
+                        logger.debug("Saving batch of ${cacheEntries.size} entries to database...")
                         userSimilarityCacheRepository.saveAll(cacheEntries)
                         cacheEntries.clear()
                         logger.info("Saved batch, total pairs computed: $pairsComputed")
@@ -106,11 +147,18 @@ class SimilarityPrecomputeService(
 
         // Save remaining entries
         if (cacheEntries.isNotEmpty()) {
+            logger.debug("Saving final batch of ${cacheEntries.size} entries to database...")
             userSimilarityCacheRepository.saveAll(cacheEntries)
         }
 
         val duration = System.currentTimeMillis() - startTime
+        val avgTimePerPair = if (pairsComputed > 0) duration.toDouble() / pairsComputed else 0.0
         logger.info("Full similarity precomputation completed: $pairsComputed pairs in ${duration}ms, $pairsFailed failed")
+        logger.debug(
+            "=== SIMILARITY COMPUTATION COMPLETE === " +
+                "Avg time per pair: ${avgTimePerPair.format(2)}ms | " +
+                "Success rate: ${((pairsComputed * 100.0) / (pairsComputed + pairsFailed)).format(1)}%",
+        )
 
         return ComputationResult(totalUsers, pairsComputed, pairsFailed)
     }
@@ -123,6 +171,7 @@ class SimilarityPrecomputeService(
      */
     @Transactional
     fun computeSimilaritiesForUser(userId: UUID): ComputationResult {
+        logger.debug("=== USER SIMILARITY COMPUTATION START for $userId ===")
         logger.info("Starting similarity computation for user $userId...")
         val startTime = System.currentTimeMillis()
 
@@ -132,15 +181,20 @@ class SimilarityPrecomputeService(
         }
 
         // Step 1: Delete existing cache entries for this user
+        logger.debug("Step 1: Clearing existing cache entries for user $userId...")
         userSimilarityCacheRepository.deleteAllByUserId(userId)
         logger.info("Cleared existing cache entries for user $userId")
 
         // Step 2: Get all other user IDs
+        logger.debug("Step 2: Loading other user IDs...")
         val otherUserIds: List<UUID> =
             userRepository
                 .findAll()
                 .mapNotNull { it.userId }
                 .filter { it != userId }
+
+        val totalPairs = otherUserIds.size.toLong()
+        logger.debug("Found ${otherUserIds.size} other users to compare against")
 
         if (otherUserIds.isEmpty()) {
             logger.info("No other users found for similarity computation")
@@ -148,20 +202,35 @@ class SimilarityPrecomputeService(
         }
 
         // Step 3: Get target user's data
+        logger.debug("Step 3: Loading target user's routes and survey...")
         val targetRoutes = routeRepository.findByCreatorId(userId)
         val targetSurvey = getLatestSurvey(userId)
+        logger.debug("Target user has ${targetRoutes.size} routes, survey: ${if (targetSurvey != null) "yes" else "no"}")
 
         // Step 4: Preload other users' data
+        logger.debug("Step 4: Preloading other users' routes...")
+        val routeLoadStart = System.currentTimeMillis()
         val routesByUser = preloadRoutesByUser(otherUserIds)
-        val surveysByUser = preloadSurveysByUser(otherUserIds)
+        val totalRoutes = routesByUser.values.sumOf { it.size }
+        logger.debug("Loaded routes for ${otherUserIds.size} users ($totalRoutes total routes) in ${System.currentTimeMillis() - routeLoadStart}ms")
 
-        // Step 5: Compute similarities
+        logger.debug("Step 5: Preloading other users' surveys...")
+        val surveyLoadStart = System.currentTimeMillis()
+        val surveysByUser = preloadSurveysByUser(otherUserIds)
+        val usersWithSurveys = surveysByUser.values.count { it != null }
+        logger.debug("Loaded surveys for $usersWithSurveys/${otherUserIds.size} users in ${System.currentTimeMillis() - surveyLoadStart}ms")
+
+        // Step 6: Compute similarities
+        logger.debug("Step 6: Computing similarities for all pairs...")
         var pairsComputed = 0
         var pairsFailed = 0
         val cacheEntries = mutableListOf<UserSimilarityCache>()
 
         for (otherUserId in otherUserIds) {
             try {
+                logger.trace("Computing pair: $userId <-> $otherUserId")
+                val pairStart = System.currentTimeMillis()
+
                 val similarity =
                     computePairSimilarity(
                         userId,
@@ -175,7 +244,27 @@ class SimilarityPrecomputeService(
                 cacheEntries.add(similarity)
                 pairsComputed++
 
+                logger.trace(
+                    "Pair $userId <-> $otherUserId: route=${similarity.routeSimilarity.format(2)}%, " +
+                        "pref=${similarity.preferenceSimilarity.format(2)}%, combined=${similarity.combinedScore.format(2)}% " +
+                        "(${System.currentTimeMillis() - pairStart}ms)",
+                )
+
+                // Log progress with ETA
+                if (pairsComputed == 1 || pairsComputed % PROGRESS_LOG_INTERVAL == 0) {
+                    val elapsed = System.currentTimeMillis() - startTime
+                    val pairsPerSecond = if (elapsed > 0) pairsComputed * 1000.0 / elapsed else 0.0
+                    val remainingPairs = totalPairs - pairsComputed
+                    val etaSeconds = if (pairsPerSecond > 0) remainingPairs / pairsPerSecond else 0.0
+                    val progressPercent = (pairsComputed * 100.0 / totalPairs).format(1)
+                    logger.debug(
+                        "Progress: $pairsComputed/$totalPairs pairs ($progressPercent%) | " +
+                            "Speed: ${pairsPerSecond.format(2)} pairs/sec | ETA: ${etaSeconds.format(0)}s",
+                    )
+                }
+
                 if (cacheEntries.size >= BATCH_SIZE) {
+                    logger.debug("Saving batch of ${cacheEntries.size} entries to database...")
                     userSimilarityCacheRepository.saveAll(cacheEntries)
                     cacheEntries.clear()
                 }
@@ -186,11 +275,18 @@ class SimilarityPrecomputeService(
         }
 
         if (cacheEntries.isNotEmpty()) {
+            logger.debug("Saving final batch of ${cacheEntries.size} entries to database...")
             userSimilarityCacheRepository.saveAll(cacheEntries)
         }
 
         val duration = System.currentTimeMillis() - startTime
+        val avgTimePerPair = if (pairsComputed > 0) duration.toDouble() / pairsComputed else 0.0
         logger.info("User similarity computation completed: $pairsComputed pairs in ${duration}ms, $pairsFailed failed")
+        logger.debug(
+            "=== USER SIMILARITY COMPUTATION COMPLETE for $userId === " +
+                "Avg time per pair: ${avgTimePerPair.format(2)}ms | " +
+                "Success rate: ${((pairsComputed * 100.0) / (pairsComputed + pairsFailed)).format(1)}%",
+        )
 
         return ComputationResult(1, pairsComputed, pairsFailed)
     }
