@@ -8,4 +8,6 @@ import java.util.UUID
 @Repository
 interface SurveyResponseRepository : JpaRepository<SurveyResponse, Long> {
     fun findByUserId(userId: UUID): List<SurveyResponse>
+
+    fun findFirstByUserIdOrderByCreatedAtDesc(userId: UUID): SurveyResponse?
 }

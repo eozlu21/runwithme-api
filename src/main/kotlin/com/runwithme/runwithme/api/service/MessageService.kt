@@ -3,6 +3,7 @@ package com.runwithme.runwithme.api.service
 import com.runwithme.runwithme.api.dto.CreateMessageRequest
 import com.runwithme.runwithme.api.dto.MessageDto
 import com.runwithme.runwithme.api.dto.PageResponse
+import com.runwithme.runwithme.api.dto.ReadReceiptPayload
 import com.runwithme.runwithme.api.entity.Message
 import com.runwithme.runwithme.api.repository.FriendshipRepository
 import com.runwithme.runwithme.api.repository.MessageRepository
@@ -12,6 +13,13 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
+
+/** Result of marking messages as read, including data needed for read receipt notifications. */
+data class MarkMessagesReadResult(
+    val updatedCount: Int,
+    /** Map of sender username to their ReadReceiptPayload for WebSocket notification */
+    val readReceiptsBySender: Map<String, ReadReceiptPayload>,
+)
 
 @Service
 class MessageService(
@@ -172,5 +180,80 @@ class MessageService(
             // Handle concurrent update conflict, e.g., by logging or returning 0
             0
         }
+    }
+
+    /**
+     * Marks messages as read and returns data needed for read receipt notifications. Groups the
+     * read messages by sender so each sender can receive one notification.
+     */
+    @Transactional
+    fun markMessagesAsReadWithNotification(
+        username: String,
+        messageIds: List<Long>,
+    ): MarkMessagesReadResult {
+        if (messageIds.isEmpty()) {
+            return MarkMessagesReadResult(0, emptyMap())
+        }
+
+        val currentUser =
+            userRepository.findByUsername(username).orElseThrow {
+                RuntimeException("User not found: $username")
+            }
+
+        val distinctIds = messageIds.distinct()
+
+        // Fetch messages before marking them as read to get sender info
+        val messagesToMark =
+            messageRepository.findAllById(distinctIds).filter {
+                it.recipientId == currentUser.userId && !it.isRead
+            }
+
+        if (messagesToMark.isEmpty()) {
+            return MarkMessagesReadResult(0, emptyMap())
+        }
+
+        // Group messages by sender
+        val messagesBySenderId = messagesToMark.groupBy { it.senderId!! }
+
+        // Get sender usernames
+        val senderIds = messagesBySenderId.keys.toList()
+        val sendersById = userRepository.findAllById(senderIds).associateBy { it.userId }
+
+        // Create read receipt payloads grouped by sender username
+        val readReceiptsBySender = mutableMapOf<String, ReadReceiptPayload>()
+        messagesBySenderId.forEach { (senderId, messages) ->
+            val senderUsername = sendersById[senderId]?.username
+            if (senderUsername != null) {
+                readReceiptsBySender[senderUsername] =
+                    ReadReceiptPayload(
+                        readByUserId = currentUser.userId!!,
+                        readByUsername = currentUser.username ?: "",
+                        messageIds = messages.mapNotNull { it.id },
+                    )
+            }
+        }
+
+        // Mark messages as read
+        val updatedCount =
+            try {
+                messageRepository.markMessagesAsReadByIds(
+                    currentUser.userId!!,
+                    messagesToMark.mapNotNull { it.id },
+                )
+            } catch (ex: org.springframework.dao.OptimisticLockingFailureException) {
+                0
+            }
+
+        return MarkMessagesReadResult(updatedCount, readReceiptsBySender)
+    }
+
+    /** Gets the count of unread messages for the specified user. */
+    @Transactional(readOnly = true)
+    fun getUnreadCount(username: String): Long {
+        val currentUser =
+            userRepository.findByUsername(username).orElseThrow {
+                RuntimeException("User not found: $username")
+            }
+        return messageRepository.countByRecipientIdAndIsReadFalse(currentUser.userId!!)
     }
 }

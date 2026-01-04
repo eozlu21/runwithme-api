@@ -394,7 +394,10 @@ class McpAgentService(
         return AgentIdentity(username = username, userId = parsedId)
     }
 
-    private fun loadChatHistory(userId: UUID, agentIdentity: AgentIdentity): List<McpConversationTurn> =
+    private fun loadChatHistory(
+        userId: UUID,
+        agentIdentity: AgentIdentity,
+    ): List<McpConversationTurn> =
         try {
             val cutoffTimestamp = historyResetCutoff(userId, agentIdentity)
             val pageRequest =
@@ -421,7 +424,11 @@ class McpAgentService(
             emptyList()
         }
 
-    private fun recordChatMessage(senderUsername: String, recipientId: UUID, content: String) {
+    private fun recordChatMessage(
+        senderUsername: String,
+        recipientId: UUID,
+        content: String,
+    ) {
         if (content.isBlank()) {
             return
         }
@@ -437,20 +444,25 @@ class McpAgentService(
         }
     }
 
-    private fun historyResetCutoff(userId: UUID, agentIdentity: AgentIdentity): OffsetDateTime? =
+    private fun historyResetCutoff(
+        userId: UUID,
+        agentIdentity: AgentIdentity,
+    ): OffsetDateTime? =
         try {
             messageRepository
                 .findTopBySenderIdAndRecipientIdAndContentOrderByCreatedAtDesc(
                     agentIdentity.userId,
                     agentIdentity.userId,
                     historyResetMarker(userId),
-                )
-                ?.createdAt
+                )?.createdAt
         } catch (ex: Exception) {
             null
         }
 
-    private fun recordHistoryReset(userId: UUID, agentIdentity: AgentIdentity) {
+    private fun recordHistoryReset(
+        userId: UUID,
+        agentIdentity: AgentIdentity,
+    ) {
         val sentinel =
             Message(
                 senderId = agentIdentity.userId,
@@ -500,8 +512,7 @@ class McpAgentService(
         private val PLACEHOLDER_PATTERN = Pattern.compile("\\{([^}]+)}")
     }
 
-    private fun defaultNoMatchMessage(): String =
-        "I can't turn that into an action right now. I'm the RunWithMe assistant; I can help with certain in-app actions and information."
+    private fun defaultNoMatchMessage(): String = "I can't turn that into an action right now. I'm the RunWithMe assistant; I can help with certain in-app actions and information."
 
     private fun buildSchemaEnvelope(
         type: String,

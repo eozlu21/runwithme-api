@@ -48,9 +48,9 @@ class GeminiClient(
                 "starterUserId" to starterUserId,
                 "routeNames" to routes.joinToString(",") { it.name },
                 "historyCount" to chatHistory.size,
-                ).apply {
-                    requestId?.let { put("requestId", it.toString()) }
-                }
+            ).apply {
+                requestId?.let { put("requestId", it.toString()) }
+            }
         val selectionResult =
             sendChatMessage(
                 key = GeminiChatKey(starterUserId, GeminiLogStage.ROUTE_SELECTION),
@@ -192,7 +192,10 @@ class GeminiClient(
         }
     }
 
-    private fun createChatSession(key: GeminiChatKey, chatHistory: List<McpConversationTurn>): GeminiChatSession {
+    private fun createChatSession(
+        key: GeminiChatKey,
+        chatHistory: List<McpConversationTurn>,
+    ): GeminiChatSession {
         val config =
             when (key.stage) {
                 GeminiLogStage.ROUTE_SELECTION -> routeSelectionChatConfig()
@@ -273,7 +276,11 @@ class GeminiClient(
                 if (stage == GeminiLogStage.ANSWER_GENERATION) {
                     val summary =
                         try {
-                            objectMapper.readTree(text).path("data").path("summary").asText(null)
+                            objectMapper
+                                .readTree(text)
+                                .path("data")
+                                .path("summary")
+                                .asText(null)
                         } catch (_: Exception) {
                             null
                         }
@@ -329,7 +336,10 @@ class GeminiClient(
         return text.trim()
     }
 
-    private fun extractJsonStringValue(jsonish: String, fieldName: String): String? {
+    private fun extractJsonStringValue(
+        jsonish: String,
+        fieldName: String,
+    ): String? {
         val needle = "\"$fieldName\""
         val start = jsonish.indexOf(needle)
         if (start < 0) return null

@@ -38,8 +38,10 @@ object GeminiPrompts {
      * Sends only the raw user request to avoid duplicating metadata inside Gemini `contents`.
      * Starter user id (and other metadata) should be passed via logs/metadata, not as part of the model prompt.
      */
-    fun routeSelectionUserPrompt(starterUserId: UUID, prompt: String): String =
-        prompt.trim()
+    fun routeSelectionUserPrompt(
+        starterUserId: UUID,
+        prompt: String,
+    ): String = prompt.trim()
 
     /**
      * Supplemental text for the route selection stage that contains the allow-list.

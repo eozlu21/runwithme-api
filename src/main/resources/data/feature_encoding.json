@@ -1,0 +1,56 @@
+{
+  "terrain_classes": [
+    "urban",
+    "suburb",
+    "park",
+    "trail",
+    "forest",
+    "coast",
+    "hills",
+    "mountain",
+    "mixed"
+  ],
+  "runner_type_classes": [
+    "elite",
+    "fast",
+    "average",
+    "slow_jog",
+    "fast_walk",
+    "casual_walk"
+  ],
+  "days_of_week": [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday"
+  ],
+  "time_of_day_categories": [
+    "early_bird",
+    "morning",
+    "lunch",
+    "afternoon",
+    "evening",
+    "night"
+  ],
+  "pace_normalization": 15.0,
+  "distance_normalization": 50.0,
+  "image_size": 64,
+  "embedding_types": [
+    "overall",
+    "shape",
+    "metadata",
+    "pace",
+    "terrain",
+    "distance",
+    "time"
+  ],
+  "feature_names": [
+    "pace",
+    "terrain",
+    "distance",
+    "time"
+  ]
+}

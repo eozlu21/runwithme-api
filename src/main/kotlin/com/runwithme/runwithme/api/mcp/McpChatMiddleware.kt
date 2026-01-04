@@ -6,13 +6,16 @@ import com.runwithme.runwithme.api.dto.MessageDto
 import com.runwithme.runwithme.api.entity.Message
 import com.runwithme.runwithme.api.repository.MessageRepository
 import com.runwithme.runwithme.api.repository.UserRepository
+import jakarta.servlet.FilterChain
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
 import org.springframework.core.task.TaskExecutor
-import org.springframework.messaging.Message as SpringMessage
+import org.springframework.http.HttpHeaders
 import org.springframework.messaging.MessageChannel
 import org.springframework.messaging.MessageHandler
 import org.springframework.messaging.simp.SimpMessagingTemplate
@@ -21,19 +24,16 @@ import org.springframework.messaging.simp.stomp.StompCommand
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor
 import org.springframework.messaging.support.ExecutorChannelInterceptor
 import org.springframework.messaging.support.MessageHeaderAccessor
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer
-import java.nio.charset.StandardCharsets
-import java.util.UUID
-import jakarta.servlet.FilterChain
-import jakarta.servlet.http.HttpServletRequest
-import jakarta.servlet.http.HttpServletResponse
-import org.springframework.http.HttpHeaders
-import org.springframework.security.core.context.SecurityContextHolder
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor
 import org.springframework.web.util.ContentCachingRequestWrapper
 import org.springframework.web.util.ContentCachingResponseWrapper
+import java.nio.charset.StandardCharsets
+import java.util.UUID
+import org.springframework.messaging.Message as SpringMessage
 
 @Configuration
 class McpChatMiddlewareConfiguration(
@@ -230,8 +230,7 @@ class McpChatAutoReplyHandler(
 class McpChatRestAutoReplyFilter(
     private val handler: McpChatAutoReplyHandler,
 ) : OncePerRequestFilter() {
-    override fun shouldNotFilter(request: HttpServletRequest): Boolean =
-        request.method != "POST" || request.requestURI != "/api/v1/chat/send"
+    override fun shouldNotFilter(request: HttpServletRequest): Boolean = request.method != "POST" || request.requestURI != "/api/v1/chat/send"
 
     override fun doFilterInternal(
         request: HttpServletRequest,

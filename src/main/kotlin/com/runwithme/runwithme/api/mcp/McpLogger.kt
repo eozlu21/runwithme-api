@@ -29,23 +29,39 @@ class McpLogger(
         }
     }
 
-    fun logGeminiRequest(stage: GeminiLogStage, payload: String, metadata: Map<String, Any?> = emptyMap()) {
+    fun logGeminiRequest(
+        stage: GeminiLogStage,
+        payload: String,
+        metadata: Map<String, Any?> = emptyMap(),
+    ) {
         val prefix = buildPrefix(stage, "GeminiRequest", metadata)
         val body = payload.ifEmpty { "<empty payload>" }.let { truncate(it) }
         writeEntry(prefix, body)
     }
 
-    fun logGeminiResponse(stage: GeminiLogStage, payload: String?, metadata: Map<String, Any?> = emptyMap()) {
+    fun logGeminiResponse(
+        stage: GeminiLogStage,
+        payload: String?,
+        metadata: Map<String, Any?> = emptyMap(),
+    ) {
         val prefix = buildPrefix(stage, "GeminiResponse", metadata)
         writeEntry(prefix, payload?.let { truncate(it) } ?: "<null payload>")
     }
 
-    fun logGeminiError(stage: GeminiLogStage, message: String, metadata: Map<String, Any?> = emptyMap(), throwable: Throwable? = null) {
+    fun logGeminiError(
+        stage: GeminiLogStage,
+        message: String,
+        metadata: Map<String, Any?> = emptyMap(),
+        throwable: Throwable? = null,
+    ) {
         val errorLine = "${buildPrefix(stage, "GeminiError", metadata)} message=$message"
         writeEntry(errorLine, throwable?.stackTraceToString()?.let { truncate(it) })
     }
 
-    fun logEvent(event: String, metadata: Map<String, Any?> = emptyMap()) {
+    fun logEvent(
+        event: String,
+        metadata: Map<String, Any?> = emptyMap(),
+    ) {
         writeEntry(buildPrefix(null, event, metadata), "")
     }
 
@@ -124,7 +140,11 @@ class McpLogger(
         writeEntry(headerLine, payload)
     }
 
-    private fun buildPrefix(stage: GeminiLogStage?, label: String, metadata: Map<String, Any?>): String {
+    private fun buildPrefix(
+        stage: GeminiLogStage?,
+        label: String,
+        metadata: Map<String, Any?>,
+    ): String {
         val builder = StringBuilder()
         builder.append(Instant.now()).append(" MCP|").append(label)
         if (stage != null) {
@@ -136,7 +156,10 @@ class McpLogger(
         return builder.toString()
     }
 
-    private fun writeEntry(header: String, payload: String?) {
+    private fun writeEntry(
+        header: String,
+        payload: String?,
+    ) {
         val sanitizedPayload = payload?.takeIf { it.isNotEmpty() } ?: ""
         val text =
             buildString {
