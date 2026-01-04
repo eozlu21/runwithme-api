@@ -44,7 +44,7 @@ class McpAgentService(
                 emptyList()
             } else {
                 loadChatHistory(starterUserId, agentIdentity)
-            }
+        }
         if (persistUserPrompt) {
             recordChatMessage(
                 senderUsername = starterUsername,
@@ -53,7 +53,7 @@ class McpAgentService(
             )
         }
         val availableRoutes = promptRouter.routes()
-        val routeSelectionHistory = priorHistory.takeLast(2)
+        val routeSelectionHistory = priorHistory.takeLast(ROUTE_SELECTION_HISTORY_LIMIT)
         val decision =
             geminiClient.selectRoute(
                 request.prompt,
@@ -508,6 +508,7 @@ class McpAgentService(
 
     companion object {
         private const val CHAT_HISTORY_LIMIT = 10
+        private const val ROUTE_SELECTION_HISTORY_LIMIT = 5
         private const val HISTORY_RESET_MARKER_PREFIX = "__MCP_HISTORY_RESET__:"
         private val PLACEHOLDER_PATTERN = Pattern.compile("\\{([^}]+)}")
     }
