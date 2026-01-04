@@ -10,11 +10,13 @@ import com.runwithme.runwithme.api.dto.UserSimilarityDetailDto
 import com.runwithme.runwithme.api.entity.Route
 import com.runwithme.runwithme.api.entity.SurveyResponse
 import com.runwithme.runwithme.api.entity.UserProfile
+import com.runwithme.runwithme.api.entity.UserSimilarityCache
 import com.runwithme.runwithme.api.repository.FriendshipRepository
 import com.runwithme.runwithme.api.repository.RouteRepository
 import com.runwithme.runwithme.api.repository.SurveyResponseRepository
 import com.runwithme.runwithme.api.repository.UserProfileRepository
 import com.runwithme.runwithme.api.repository.UserRepository
+import com.runwithme.runwithme.api.repository.UserSimilarityCacheRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -30,6 +32,7 @@ class UserRecommendationService(
     private val friendshipRepository: FriendshipRepository,
     private val userPreferenceService: UserPreferenceService,
     private val routeSimilarityService: RouteSimilarityService,
+    private val userSimilarityCacheRepository: UserSimilarityCacheRepository,
 ) {
     private val logger = LoggerFactory.getLogger(UserRecommendationService::class.java)
 
@@ -40,7 +43,8 @@ class UserRecommendationService(
     }
 
     /**
-     * Get recommended users for the requesting user
+     * Get recommended users for the requesting user.
+     * Uses precomputed similarity scores from cache for performance.
      */
     @Transactional(readOnly = true)
     fun getRecommendations(
@@ -49,35 +53,65 @@ class UserRecommendationService(
         size: Int,
         locationLevel: LocationFilterLevel,
     ): PageResponse<UserRecommendationDto> {
-        // Step 1: Get requesting user's data
+        // Step 1: Get requesting user's data for filtering
         val requestingProfile = userProfileRepository.findById(requestingUserId).orElse(null)
         val requestingSurvey = getLatestSurvey(requestingUserId)
-        val requestingRoutes = routeRepository.findByCreatorId(requestingUserId)
 
-        // Step 2: Get friend IDs to exclude
+        // Step 2: Get friend IDs to indicate friendship status
         val friendIds = friendshipRepository.findFriendIds(requestingUserId).toSet()
 
-        // Step 3: Find candidate users based on filters
+        // Step 3: Find candidate users based on filters (no longer excluding friends)
         val candidates =
             findCandidates(requestingProfile, requestingSurvey, locationLevel)
-                .filter { it.userId != requestingUserId && it.userId !in friendIds }
+                .filter { it.userId != requestingUserId }
 
         // Step 4: Filter by schedule compatibility
         val scheduleFilteredCandidates = filterByScheduleCompatibility(candidates, requestingSurvey)
 
-        // Step 5: Calculate similarity scores for each candidate
+        // Step 5: Get cached similarity scores for this user
+        val cachedScores: Map<UUID, UserSimilarityCache> =
+            userSimilarityCacheRepository
+                .findAllByUserId(requestingUserId)
+                .associateBy { cache ->
+                    // Get the other user ID from the cache entry
+                    if (cache.user1Id == requestingUserId) cache.user2Id else cache.user1Id
+                }
+
+        // Step 6: Build recommendations from cache (only for filtered candidates)
         val scoredCandidates =
             scheduleFilteredCandidates
                 .mapNotNull { candidateProfile ->
-                    calculateUserRecommendation(
-                        requestingUserId,
-                        requestingRoutes,
-                        requestingSurvey,
-                        candidateProfile,
+                    val candidateUserId = candidateProfile.userId ?: return@mapNotNull null
+                    val cached = cachedScores[candidateUserId]
+
+                    // Skip if no cached score available
+                    if (cached == null) {
+                        logger.debug("No cached similarity for $requestingUserId - $candidateUserId")
+                        return@mapNotNull null
+                    }
+
+                    val candidateUser =
+                        userRepository.findById(candidateUserId).orElse(null)
+                            ?: return@mapNotNull null
+                    val candidateRoutes = routeRepository.findByCreatorId(candidateUserId)
+                    val candidateSurvey = getLatestSurvey(candidateUserId)
+                    val requestingRoutes = routeRepository.findByCreatorId(requestingUserId)
+
+                    UserRecommendationDto(
+                        userId = candidateUserId,
+                        username = candidateUser.username,
+                        profilePic = candidateProfile.profilePic,
+                        combinedScore = cached.combinedScore,
+                        routeSimilarityScore = cached.routeSimilarity,
+                        preferenceSimilarityScore = cached.preferenceSimilarity,
+                        routePairCount = requestingRoutes.size * candidateRoutes.size,
+                        hasRoutes = candidateRoutes.isNotEmpty(),
+                        hasSurvey = candidateSurvey != null,
+                        isFriend = candidateUserId in friendIds,
                     )
                 }.sortedByDescending { it.combinedScore }
 
-        // Step 6: Apply pagination
+        // Step 7: Apply pagination
         return paginateResults(scoredCandidates, page, size)
     }
 
@@ -225,6 +259,7 @@ class UserRecommendationService(
         requestingRoutes: List<Route>,
         requestingSurvey: SurveyResponse?,
         candidateProfile: UserProfile,
+        friendIds: Set<UUID>,
     ): UserRecommendationDto? {
         val candidateUserId = candidateProfile.userId ?: return null
         val candidateUser = userRepository.findById(candidateUserId).orElse(null) ?: return null
@@ -251,6 +286,7 @@ class UserRecommendationService(
             routePairCount = requestingRoutes.size * candidateRoutes.size,
             hasRoutes = candidateRoutes.isNotEmpty(),
             hasSurvey = candidateSurvey != null,
+            isFriend = candidateUserId in friendIds,
         )
     }
 

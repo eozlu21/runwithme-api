@@ -9,10 +9,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         # dialect: org.hibernate.dialect.PostgreSQLDialect
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
@@ -68,14 +68,23 @@ logging:
   level:
     com.runwithme.runwithme.api.config.RequestLoggingInterceptor: INFO
     org.springframework.web: INFO
+    com.runwithme.runwithme.api.mcp: INFO
+    # Similarity computation debug logging (set to DEBUG to see progress)
+    com.runwithme.runwithme.api.service.SimilarityPrecomputeService: DEBUG
+    com.runwithme.runwithme.api.service.RouteSimilarityService: DEBUG
+    # Hibernate logging completely disabled
+    org.hibernate: WARN
+    org.hibernate.SQL: OFF
+    org.hibernate.type.descriptor.sql: OFF
+    org.hibernate.stat: OFF
 
 # MCP Configuration
 mcp:
   external-api-base-url: ${MCP_EXTERNAL_API_BASE_URL:https://jsonplaceholder.typicode.com}
   gemini-model: ${MCP_GEMINI_MODEL:gemini-3-flash-preview}
   gemini-api-key: ${MCP_GEMINI_API_KEY:}
-  agent-username: ${MCP_AGENT_USERNAME:}
-  agent-user-id: ${MCP_AGENT_USER_ID:}
+  agent-username: ${MCP_AGENT_USERNAME:MCP}
+  agent-user-id: ${MCP_AGENT_USER_ID:5382c0ba-bb89-40d9-8d96-09185f7cceb1}
   agent-request-header: X-MCP-Agent
   response-filter:
     enabled: true
@@ -91,3 +100,19 @@ aws:
       access-key: ${AWS_ACCESS_KEY_ID:AKIAVSIAYC6V4GQDS5TS}
       secret-key: ${AWS_SECRET_ACCESS_KEY}
       endpoint: ${AWS_LIGHTSAIL_BUCKET_ENDPOINT:}
+
+# Route Similarity ML Configuration
+similarity:
+  python-path: ${PYTHON_PATH:python3}
+  inference-script-dir: ${INFERENCE_SCRIPT_DIR:}
+  embeddings-dir: ${EMBEDDINGS_DIR:classpath:data}
+
+# Firebase Configuration for Push Notifications
+firebase:
+  enabled: true
+  project-id: runwithme-eb52d
+  credentials:
+    # Path to service account JSON file (mounted in Docker or local path)
+    path: ${FIREBASE_CREDENTIALS_PATH:}
+    # JSON string option (for local dev if needed)
+    json: ${FIREBASE_CREDENTIALS_JSON:}

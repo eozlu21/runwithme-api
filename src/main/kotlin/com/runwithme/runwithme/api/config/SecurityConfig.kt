@@ -1,6 +1,7 @@
 package com.runwithme.runwithme.api.config
 
 import com.runwithme.runwithme.api.security.JwtAuthenticationFilter
+import com.runwithme.runwithme.api.security.LocalhostAuthorizationManager
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
@@ -27,6 +28,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
     private val userDetailsService: UserDetailsService,
+    private val localhostAuthorizationManager: LocalhostAuthorizationManager,
 ) {
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
@@ -60,6 +62,9 @@ class SecurityConfig(
                     // Allow public access to GET image endpoints
                     .requestMatchers(HttpMethod.GET, "/api/v1/images/**")
                     .permitAll()
+                    // Admin endpoints: no JWT required, but localhost-only access
+                    .requestMatchers("/api/v1/admin/**")
+                    .access(localhostAuthorizationManager)
                     .requestMatchers("/api/v1/**")
                     .authenticated()
                     .anyRequest()

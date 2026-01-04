@@ -5,10 +5,12 @@ import com.runwithme.runwithme.api.dto.CreateMessageRequest
 import com.runwithme.runwithme.api.dto.MarkMessagesReadRequest
 import com.runwithme.runwithme.api.dto.MarkMessagesReadResponse
 import com.runwithme.runwithme.api.dto.MessageDto
+import com.runwithme.runwithme.api.dto.MessageNotificationPayload
 import com.runwithme.runwithme.api.dto.MessageType
 import com.runwithme.runwithme.api.dto.PageResponse
 import com.runwithme.runwithme.api.dto.UnreadCountResponse
 import com.runwithme.runwithme.api.service.MessageService
+import com.runwithme.runwithme.api.service.PushNotificationService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -70,6 +72,7 @@ class ChatController(
     private val messageService: MessageService,
     private val messagingTemplate: SimpMessagingTemplate,
     private val simpUserRegistry: SimpUserRegistry,
+    private val pushNotificationService: PushNotificationService,
 ) {
     private val logger = LoggerFactory.getLogger(ChatController::class.java)
 
@@ -100,15 +103,17 @@ class ChatController(
                 logger.info(
                     "Recipient ${messageDto.recipientUsername} is connected with ${recipientUser.sessions.size} sessions",
                 )
+                // Recipient is connected via WebSocket, deliver in real-time
+                messagingTemplate.convertAndSendToUser(
+                    messageDto.recipientUsername,
+                    "/queue/messages",
+                    chatEvent,
+                )
             } else {
-                logger.warn("Recipient ${messageDto.recipientUsername} is NOT connected")
+                // Recipient is NOT connected - send push notification
+                logger.warn("Recipient ${messageDto.recipientUsername} is NOT connected, sending push notification")
+                sendPushNotificationForMessage(messageDto)
             }
-
-            messagingTemplate.convertAndSendToUser(
-                messageDto.recipientUsername,
-                "/queue/messages",
-                chatEvent,
-            )
         }
 
         // Send back to sender (so they see it immediately confirmed/formatted)
@@ -177,6 +182,10 @@ class ChatController(
                 logger.info(
                     "Message also delivered via WebSocket to ${messageDto.recipientUsername}",
                 )
+            } else {
+                // Recipient not connected - send push notification
+                logger.info("Recipient not connected via WebSocket, sending push notification")
+                sendPushNotificationForMessage(messageDto)
             }
             // Also send to sender via WebSocket for consistency
             val senderUser = simpUserRegistry.getUser(authentication.name)
@@ -190,6 +199,29 @@ class ChatController(
         }
 
         return ResponseEntity.ok(messageDto)
+    }
+
+    /**
+     * Helper method to send a push notification for a new message.
+     * Called when the recipient is not connected via WebSocket.
+     */
+    private fun sendPushNotificationForMessage(messageDto: MessageDto) {
+        // senderUsername is optional in MessageDto
+        val senderUsername = messageDto.senderUsername ?: return
+
+        val payload =
+            MessageNotificationPayload(
+                messageId = messageDto.id,
+                senderId = messageDto.senderId,
+                senderUsername = senderUsername,
+                content = messageDto.content,
+                conversationId = messageDto.senderId.toString(), // Use sender ID as conversation ID
+            )
+
+        pushNotificationService.sendMessageNotification(
+            recipientUserId = messageDto.recipientId,
+            payload = payload,
+        )
     }
 
     @GetMapping("/api/v1/chat/history/{otherUserId}")

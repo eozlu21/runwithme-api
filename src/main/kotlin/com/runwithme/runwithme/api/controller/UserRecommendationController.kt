@@ -41,7 +41,8 @@ class UserRecommendationController(
             - Location (based on locationLevel parameter)
             - Schedule compatibility (preferred days and time of day)
             - Gender preference (if user has matchGenderPreference = true)
-            - Excludes existing friends
+
+            Note: Friends are included in results with isFriend=true indicator.
         """,
     )
     @ApiResponses(

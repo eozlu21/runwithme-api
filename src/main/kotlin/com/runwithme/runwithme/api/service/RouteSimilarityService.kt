@@ -3,6 +3,7 @@ package com.runwithme.runwithme.api.service
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import jakarta.annotation.PostConstruct
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.File
 import java.nio.ByteBuffer
@@ -44,6 +45,8 @@ data class SimilarRoute(
  */
 @Service
 class RouteSimilarityService {
+    private val logger = LoggerFactory.getLogger(RouteSimilarityService::class.java)
+
     // Embeddings for each feature type
     private lateinit var embeddings: MutableMap<String, Array<FloatArray>>
     private lateinit var routeMetadata: List<Map<String, Any?>>
@@ -60,7 +63,7 @@ class RouteSimilarityService {
     @PostConstruct
     fun init() {
         loadEmbeddings()
-        println("✅ RouteSimilarityService initialized with $routeCount routes and ${embeddingTypes.size} embedding types")
+        logger.info("RouteSimilarityService initialized with $routeCount routes and ${embeddingTypes.size} embedding types")
     }
 
     /**
@@ -109,10 +112,10 @@ class RouteSimilarityService {
                         FloatArray(embDim) { buffer.float }
                     }
 
-                println("📦 Loaded $embType embeddings: $routeCount x $embDim (${bytes.size / 1024} KB)")
+                logger.debug("Loaded $embType embeddings: $routeCount x $embDim (${bytes.size / 1024} KB)")
             }
 
-            println("✅ Loaded ${embeddings.size} embedding types for $routeCount routes")
+            logger.info("Loaded ${embeddings.size} embedding types for $routeCount routes")
         } catch (e: Exception) {
             throw RuntimeException("Failed to load embeddings: ${e.message}", e)
         }
@@ -273,6 +276,9 @@ class RouteSimilarityService {
                 ?: javaClass.classLoader.getResource("python")?.path
                 ?: throw RuntimeException("Python scripts not found. Set INFERENCE_SCRIPT_DIR env var.")
 
+        logger.debug("Starting Python inference for route embedding...")
+        val pythonStart = System.currentTimeMillis()
+
         try {
             // Write route data to temp file
             val tempInput = File.createTempFile("route_input_", ".json")
@@ -281,6 +287,7 @@ class RouteSimilarityService {
             tempOutput.deleteOnExit()
 
             mapper.writeValue(tempInput, routeData)
+            logger.trace("Wrote route data to temp file: ${tempInput.absolutePath}")
 
             // Call Python script
             val process =
@@ -304,6 +311,7 @@ class RouteSimilarityService {
             val output = process.inputStream.bufferedReader().readText()
 
             if (exitCode != 0) {
+                logger.error("Python script failed (exit $exitCode): $output")
                 throw RuntimeException("Python script failed (exit $exitCode): $output")
             }
 
@@ -314,10 +322,15 @@ class RouteSimilarityService {
             tempInput.delete()
             tempOutput.delete()
 
+            val duration = System.currentTimeMillis() - pythonStart
+            logger.debug("Python inference completed in ${duration}ms, generated ${response.size} embedding types")
+
             return response.mapValues { (_, values) ->
                 values.map { it.toFloat() }.toFloatArray()
             }
         } catch (e: Exception) {
+            val duration = System.currentTimeMillis() - pythonStart
+            logger.error("Python inference failed after ${duration}ms: ${e.message}")
             throw RuntimeException("Failed to compute embedding: ${e.message}", e)
         }
     }

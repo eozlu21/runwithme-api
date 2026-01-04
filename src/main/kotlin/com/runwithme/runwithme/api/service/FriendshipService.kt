@@ -411,4 +411,72 @@ class FriendshipService(
             else -> "REQUEST_RECEIVED"
         }
     }
+
+    // ============ MCP User Friendship Operations ============
+
+    companion object {
+        const val MCP_USERNAME = "MCP"
+    }
+
+    /**
+     * Create a friendship between a user and the MCP user without requiring a friend request.
+     * Returns true if friendship was created, false if already friends or MCP user not found.
+     */
+    @Transactional
+    fun makeFriendsWithMcp(userId: UUID): Boolean {
+        val mcpUser = userRepository.findByUsername(MCP_USERNAME).orElse(null) ?: return false
+
+        // Don't friend MCP with itself
+        if (userId == mcpUser.userId) {
+            return false
+        }
+
+        // Check if already friends
+        if (friendshipRepository.areFriends(userId, mcpUser.userId!!)) {
+            return false
+        }
+
+        val friendship = Friendship.create(userId, mcpUser.userId!!)
+        friendshipRepository.save(friendship)
+        return true
+    }
+
+    /**
+     * Make all existing users friends with the MCP user.
+     * Returns the count of new friendships created.
+     */
+    @Transactional
+    fun makeAllUsersFriendsWithMcp(): Int {
+        val mcpUser =
+            userRepository.findByUsername(MCP_USERNAME).orElse(null)
+                ?: throw NoSuchElementException("MCP user not found. Please create a user with username '$MCP_USERNAME' first.")
+
+        val mcpUserId = mcpUser.userId!!
+        var friendshipsCreated = 0
+
+        userRepository.findAll().forEach { user ->
+            val userId = user.userId ?: return@forEach
+
+            // Skip MCP user itself
+            if (userId == mcpUserId) {
+                return@forEach
+            }
+
+            // Skip if already friends
+            if (friendshipRepository.areFriends(userId, mcpUserId)) {
+                return@forEach
+            }
+
+            val friendship = Friendship.create(userId, mcpUserId)
+            friendshipRepository.save(friendship)
+            friendshipsCreated++
+        }
+
+        return friendshipsCreated
+    }
+
+    /**
+     * Get the MCP user's ID if it exists.
+     */
+    fun getMcpUserId(): UUID? = userRepository.findByUsername(MCP_USERNAME).orElse(null)?.userId
 }
