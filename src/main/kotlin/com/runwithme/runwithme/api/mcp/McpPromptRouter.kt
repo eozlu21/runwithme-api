@@ -13,7 +13,7 @@ class McpPromptRouter {
             McpRoute(
                 name = "Get User Profile",
                 description =
-                    "Fetch a user's profile details by user id (e.g., firstName, lastName, pronouns, birthday, expertLevel, profileVisibility). Use for: 'Who am I?', 'my profile', 'my pronouns', 'my birthday', 'my expertise level'.",
+                    "Fetch a user's profile details by user id (e.g., firstName, lastName, pronouns, birthday, expertLevel, profileVisibility). If the viewer cannot see the full profile, the API may return a limited profile view instead. Use for: 'Who am I?', 'my profile', 'my pronouns', 'my birthday', 'my expertise level'.",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/user-profiles/{id}",
                 parameters =
@@ -34,7 +34,7 @@ class McpPromptRouter {
             McpRoute(
                 name = "Get User By Username",
                 description =
-                    "Find a user by username handle (e.g., 'minaaa' without '@') and return the matching user's basic account/profile info. Use for: 'Is there a user @minaaa?', 'the username is minaaa'. Not for searching by real name (e.g., 'someone named Mina').",
+                    "Find a user by username handle (e.g., 'minaaa' without '@') and return the matching user's basic account info (UserDto: userId, username, email, createdAt, emailVerified). Use for: 'Is there a user @minaaa?', 'the username is minaaa'. Not for searching by real name (e.g., 'someone named Mina').",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/users/username/{username}",
                 parameters =
