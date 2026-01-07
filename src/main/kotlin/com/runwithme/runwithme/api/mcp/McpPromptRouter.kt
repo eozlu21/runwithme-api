@@ -53,33 +53,104 @@ class McpPromptRouter {
                     ),
             ),
             McpRoute(
-                name = "Send Friend Request",
+                name = "Get User By Id",
                 description =
-                    "Send/create a friend request from the authenticated user to another user. Requires the target user's UUID (receiverId). Optionally include a short note (message). Use for: 'send a friend request', 'add as a friend'.",
-                method = HttpMethod.POST,
-                pathTemplate = "api/v1/friends/requests",
+                    "Fetch a user's account info by user id and return the UserDto fields including username. Use for: 'what is my username', 'my account info'.",
+                method = HttpMethod.GET,
+                pathTemplate = "api/v1/users/{id}",
                 parameters =
                     listOf(
                         McpRouteParameter(
-                            name = "receiverId",
+                            name = "id",
                             description =
-                                "UUID of the user who should receive the friend request.",
+                                "UUID of the user whose account info will be fetched (usually the authenticated user).",
+                            required = true,
+                        ),
+                    ),
+                errorTemplates =
+                    mapOf(
+                        HttpStatus.NOT_FOUND.value() to
+                            "User '{id}' was not found.",
+                    ),
+            ),
+            McpRoute(
+                name = "Send Friend Request",
+                description =
+                    "Send/create a friend request from a specified sender username to a specified receiver username. Use for MCP testing only.",
+                method = HttpMethod.POST,
+                pathTemplate = "api/v1/mcp/whitelist/friends/requests",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "senderUsername",
+                            description =
+                                "Username of the user sending the friend request (no '@').",
                             location = McpRouteParameterLocation.BODY,
                         ),
                         McpRouteParameter(
-                            name = "message",
+                            name = "receiverUsername",
                             description =
-                                "Optional note/message to include with the friend request.",
-                            required = false,
+                                "Username of the user receiving the friend request (no '@').",
+                            location = McpRouteParameterLocation.BODY,
+                        ),
+                    ),
+            ),
+            McpRoute(
+                name = "Accept Friend Request",
+                description =
+                    "Accept a pending friend request using sender and receiver usernames. Use for MCP testing only.",
+                method = HttpMethod.POST,
+                pathTemplate = "api/v1/mcp/whitelist/friends/requests/accept",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "senderUsername",
+                            description =
+                                "Username of the user who sent the friend request (no '@').",
+                            location = McpRouteParameterLocation.BODY,
+                        ),
+                        McpRouteParameter(
+                            name = "receiverUsername",
+                            description =
+                                "Username of the user who received the friend request (no '@').",
                             location = McpRouteParameterLocation.BODY,
                         ),
                     ),
                 errorTemplates =
                     mapOf(
                         HttpStatus.NOT_FOUND.value() to
-                            "User '{receiverId}' could not be found.",
-                        HttpStatus.CONFLICT.value() to
-                            "There is already a pending request with this user.",
+                            "No pending friend request from {senderUsername} to you was found.",
+                        HttpStatus.FORBIDDEN.value() to
+                            "You are not allowed to respond to {senderUsername}'s friend request.",
+                    ),
+            ),
+            McpRoute(
+                name = "Reject Friend Request",
+                description =
+                    "Reject a pending friend request using sender and receiver usernames. Use for MCP testing only.",
+                method = HttpMethod.POST,
+                pathTemplate = "api/v1/mcp/whitelist/friends/requests/reject",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "senderUsername",
+                            description =
+                                "Username of the user who sent the friend request (no '@').",
+                            location = McpRouteParameterLocation.BODY,
+                        ),
+                        McpRouteParameter(
+                            name = "receiverUsername",
+                            description =
+                                "Username of the user who received the friend request (no '@').",
+                            location = McpRouteParameterLocation.BODY,
+                        ),
+                    ),
+                errorTemplates =
+                    mapOf(
+                        HttpStatus.NOT_FOUND.value() to
+                            "No pending friend request from {senderUsername} to you was found.",
+                        HttpStatus.FORBIDDEN.value() to
+                            "You are not allowed to respond to {senderUsername}'s friend request.",
                     ),
             ),
             McpRoute(

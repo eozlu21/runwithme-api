@@ -59,6 +59,7 @@ class McpAgentService(
                 request.prompt,
                 availableRoutes,
                 starterUserId,
+                starterUsername,
                 routeSelectionHistory,
                 requestId = requestId,
             )
@@ -83,6 +84,7 @@ class McpAgentService(
                     routeDescription = "No matching action",
                     apiBody = noMatchContext,
                     starterUserId = starterUserId,
+                    starterUsername = starterUsername,
                     chatHistory = answerHistory,
                     routeArguments = decisionArguments,
                     requestId = requestId,
@@ -166,6 +168,7 @@ class McpAgentService(
                     routeDescription = route.description,
                     apiBody = apiResult.body,
                     starterUserId = starterUserId,
+                    starterUsername = starterUsername,
                     chatHistory = answerHistory,
                     routeArguments = decisionArguments,
                     requestId = requestId,

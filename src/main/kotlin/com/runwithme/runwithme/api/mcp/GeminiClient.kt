@@ -31,6 +31,7 @@ class GeminiClient(
         prompt: String,
         routes: List<McpRoute>,
         starterUserId: UUID,
+        starterUsername: String,
         chatHistory: List<McpConversationTurn> = emptyList(),
         requestId: UUID? = null,
     ): GeminiRouteDecision {
@@ -42,7 +43,7 @@ class GeminiClient(
         }
 
         val functionListJson = objectMapper.writeValueAsString(routes.toGeminiRoutePayload())
-        val selectionPrompt = GeminiPrompts.routeSelectionUserPrompt(starterUserId, prompt)
+        val selectionPrompt = GeminiPrompts.routeSelectionUserPrompt(starterUserId, starterUsername, prompt)
         val selectionMetadata =
             mutableMapOf<String, Any?>(
                 "starterUserId" to starterUserId,
@@ -112,6 +113,7 @@ class GeminiClient(
         routeDescription: String,
         apiBody: String,
         starterUserId: UUID,
+        starterUsername: String,
         chatHistory: List<McpConversationTurn> = emptyList(),
         routeArguments: Map<String, String>? = null,
         requestId: UUID? = null,
@@ -124,6 +126,7 @@ class GeminiClient(
             GeminiPrompts.answerUserPrompt(
                 prompt = prompt,
                 starterUserId = starterUserId,
+                starterUsername = starterUsername,
                 routeDescription = routeDescription,
                 apiBody = apiBody,
             )

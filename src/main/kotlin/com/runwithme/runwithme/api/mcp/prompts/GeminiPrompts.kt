@@ -36,13 +36,18 @@ object GeminiPrompts {
     /**
      * User prompt for the route selection stage.
      *
-     * Sends only the raw user request to avoid duplicating metadata inside Gemini `contents`.
-     * Starter user id (and other metadata) should be passed via logs/metadata, not as part of the model prompt.
+     * Include authenticated user context so Gemini can answer identity questions without an API call.
      */
     fun routeSelectionUserPrompt(
         starterUserId: UUID,
+        starterUsername: String,
         prompt: String,
-    ): String = prompt.trim()
+    ): String =
+        buildString {
+            appendLine("User request: ${prompt.trim()}")
+            appendLine("Authenticated user ID (starterUserId): $starterUserId")
+            appendLine("Authenticated username: $starterUsername")
+        }
 
     /**
      * Supplemental text for the route selection stage that contains the allow-list.
@@ -79,12 +84,14 @@ object GeminiPrompts {
     fun answerUserPrompt(
         prompt: String,
         starterUserId: UUID,
+        starterUsername: String,
         routeDescription: String,
         apiBody: String,
     ): String =
         buildString {
             appendLine("User request: $prompt")
             appendLine("Authenticated user ID (starterUserId): $starterUserId")
+            appendLine("Authenticated username: $starterUsername")
             appendLine("Selected action: $routeDescription")
             appendLine("API response: $apiBody")
         }
