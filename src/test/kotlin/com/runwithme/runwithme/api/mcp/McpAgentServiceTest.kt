@@ -1,7 +1,9 @@
 package com.runwithme.runwithme.api.mcp
 
 import com.runwithme.runwithme.api.entity.Message
+import com.runwithme.runwithme.api.repository.FriendshipRepository
 import com.runwithme.runwithme.api.repository.MessageRepository
+import com.runwithme.runwithme.api.repository.RunSessionRepository
 import com.runwithme.runwithme.api.service.MessageService
 import io.mockk.every
 import io.mockk.mockk
@@ -17,6 +19,8 @@ class McpAgentServiceTest {
     private val promptRouter = mockk<McpPromptRouter>(relaxed = true)
     private val messageService = mockk<MessageService>(relaxed = true)
     private val messageRepository = mockk<MessageRepository>(relaxed = true)
+    private val runSessionRepository = mockk<RunSessionRepository>(relaxed = true)
+    private val friendshipRepository = mockk<FriendshipRepository>(relaxed = true)
     private val properties =
         McpProperties(
             geminiApiKey = "dummy",
@@ -64,6 +68,8 @@ class McpAgentServiceTest {
             promptRouter,
             messageService,
             messageRepository,
+            runSessionRepository,
+            friendshipRepository,
             properties,
         )
 }
