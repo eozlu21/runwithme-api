@@ -4,6 +4,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.runwithme.runwithme.api.dto.CreateMessageRequest
 import com.runwithme.runwithme.api.dto.UserStatisticsResponse
 import com.runwithme.runwithme.api.entity.Message
+import com.runwithme.runwithme.api.repository.FriendshipRepository
 import com.runwithme.runwithme.api.repository.MessageRepository
 import com.runwithme.runwithme.api.repository.RunSessionRepository
 import com.runwithme.runwithme.api.service.MessageService
@@ -29,6 +30,7 @@ class McpAgentService(
     private val messageService: MessageService,
     private val messageRepository: MessageRepository,
     private val runSessionRepository: RunSessionRepository,
+    private val friendshipRepository: FriendshipRepository,
     private val properties: McpProperties,
 ) {
     private val objectMapper = jacksonObjectMapper()
@@ -117,7 +119,7 @@ class McpAgentService(
                 persistResponse = persistAgentReply,
             )
         }
-        val route =
+        var route =
             promptRouter.routeByName(selectedRouteName)
                 ?: return respondWithAgentMessage(
                     McpAgentResponse(
@@ -137,9 +139,176 @@ class McpAgentService(
                     persistResponse = persistAgentReply,
                 )
 
+        var effectiveArguments = decisionArguments
+        if (route.name.equals(RUNNING_STATS_BY_USERNAME_ROUTE_NAME, ignoreCase = true)) {
+            val rawUsername = decisionArguments?.get("username")?.trim().orEmpty()
+            val username = rawUsername.removePrefix("@").trim()
+            if (username.isBlank()) {
+                val errorMessage = "`${route.name}` requires parameter `username`."
+                return respondWithAgentMessage(
+                    McpAgentResponse(
+                        success = false,
+                        routeName = route.name,
+                        requestedUrl = null,
+                        apiBody = null,
+                        llmMessage = null,
+                        userMessage = errorMessage,
+                        routeDecisionReason = decision.reason,
+                        resolvedArguments = decisionArguments,
+                        starterUserId = starterUserId,
+                        error = errorMessage,
+                    ),
+                    starterUserId,
+                    agentIdentity,
+                    persistResponse = persistAgentReply,
+                )
+            }
+            val userLookupRoute =
+                promptRouter.routeByName(USER_BY_USERNAME_ROUTE_NAME)
+                    ?: return respondWithAgentMessage(
+                        McpAgentResponse(
+                            success = false,
+                            routeName = route.name,
+                            requestedUrl = null,
+                            apiBody = null,
+                            llmMessage = null,
+                            userMessage = "I couldn't look up that username right now.",
+                            routeDecisionReason = decision.reason,
+                            resolvedArguments = decisionArguments,
+                            starterUserId = starterUserId,
+                            error = "Required route `Get User By Username` is not available.",
+                        ),
+                        starterUserId,
+                        agentIdentity,
+                        persistResponse = persistAgentReply,
+                    )
+            val userLookupArguments = mapOf("username" to username)
+            val userLookupResolvedRoute =
+                try {
+                    resolveRoute(userLookupRoute, userLookupArguments)
+                } catch (ex: IllegalStateException) {
+                    val errorMessage = ex.message ?: "I couldn't look up that username right now."
+                    return respondWithAgentMessage(
+                        McpAgentResponse(
+                            success = false,
+                            routeName = route.name,
+                            requestedUrl = null,
+                            apiBody = null,
+                            llmMessage = null,
+                            userMessage = errorMessage,
+                            routeDecisionReason = decision.reason,
+                            resolvedArguments = decisionArguments,
+                            starterUserId = starterUserId,
+                            error = errorMessage,
+                        ),
+                        starterUserId,
+                        agentIdentity,
+                        persistResponse = persistAgentReply,
+                    )
+                }
+            val userLookupResult =
+                try {
+                    externalApiClient.fetchData(
+                        route = userLookupRoute,
+                        resolvedPath = userLookupResolvedRoute.path,
+                        authorizationHeader = authorizationHeader,
+                        requestBody = userLookupResolvedRoute.body,
+                    )
+                } catch (ex: ExternalApiCallException) {
+                    val lookupMessage =
+                        if (ex.statusCode == HttpStatus.NOT_FOUND.value()) {
+                            resolveCustomErrorMessage(userLookupRoute, ex, userLookupArguments)
+                                ?: "No user named '$username' was found."
+                        } else {
+                            "I couldn't look up that username right now."
+                        }
+                    return respondWithAgentMessage(
+                        McpAgentResponse(
+                            success = false,
+                            routeName = route.name,
+                            requestedUrl = ex.url,
+                            apiBody = ex.responseBody,
+                            llmMessage = null,
+                            userMessage = lookupMessage,
+                            routeDecisionReason = decision.reason,
+                            resolvedArguments = decisionArguments,
+                            starterUserId = starterUserId,
+                            error = lookupMessage,
+                        ),
+                        starterUserId,
+                        agentIdentity,
+                        persistResponse = persistAgentReply,
+                    )
+                }
+            val resolvedUserId = extractUserIdFromLookup(userLookupResult.body)
+            if (resolvedUserId == null) {
+                val errorMessage = "No user named '$username' was found."
+                return respondWithAgentMessage(
+                    McpAgentResponse(
+                        success = false,
+                        routeName = route.name,
+                        requestedUrl = null,
+                        apiBody = userLookupResult.body,
+                        llmMessage = null,
+                        userMessage = errorMessage,
+                        routeDecisionReason = decision.reason,
+                        resolvedArguments = decisionArguments,
+                        starterUserId = starterUserId,
+                        error = errorMessage,
+                    ),
+                    starterUserId,
+                    agentIdentity,
+                    persistResponse = persistAgentReply,
+                )
+            }
+            if (resolvedUserId != starterUserId && !friendshipRepository.areFriends(starterUserId, resolvedUserId)) {
+                val errorMessage = "I can only show running stats for you or your friends."
+                return respondWithAgentMessage(
+                    McpAgentResponse(
+                        success = false,
+                        routeName = route.name,
+                        requestedUrl = null,
+                        apiBody = null,
+                        llmMessage = null,
+                        userMessage = errorMessage,
+                        routeDecisionReason = decision.reason,
+                        resolvedArguments = decisionArguments,
+                        starterUserId = starterUserId,
+                        error = errorMessage,
+                    ),
+                    starterUserId,
+                    agentIdentity,
+                    persistResponse = persistAgentReply,
+                )
+            }
+            val statsRoute =
+                promptRouter.routeByName(RUNNING_STATS_ROUTE_NAME)
+                    ?: return respondWithAgentMessage(
+                        McpAgentResponse(
+                            success = false,
+                            routeName = route.name,
+                            requestedUrl = null,
+                            apiBody = null,
+                            llmMessage = null,
+                            userMessage = "I couldn't load running stats right now.",
+                            routeDecisionReason = decision.reason,
+                            resolvedArguments = decisionArguments,
+                            starterUserId = starterUserId,
+                            error = "Required route `Get User Running Statistics` is not available.",
+                        ),
+                        starterUserId,
+                        agentIdentity,
+                        persistResponse = persistAgentReply,
+                    )
+            val statsArguments = linkedMapOf("userId" to resolvedUserId.toString())
+            decisionArguments?.get("days")?.takeIf { it.isNotBlank() }?.let { statsArguments["days"] = it }
+            route = statsRoute
+            effectiveArguments = statsArguments
+        }
+
         val resolvedRoute =
             try {
-                resolveRoute(route, decisionArguments)
+                resolveRoute(route, effectiveArguments)
             } catch (ex: IllegalStateException) {
                 val errorMessage = ex.message ?: "`${route.name}` could not be resolved."
                 return respondWithAgentMessage(
@@ -151,7 +320,7 @@ class McpAgentService(
                         llmMessage = null,
                         userMessage = errorMessage,
                         routeDecisionReason = decision.reason,
-                        resolvedArguments = decisionArguments,
+                        resolvedArguments = effectiveArguments,
                         starterUserId = starterUserId,
                         error = errorMessage,
                     ),
@@ -177,7 +346,7 @@ class McpAgentService(
                     starterUserId = starterUserId,
                     starterUsername = starterUsername,
                     chatHistory = answerHistory,
-                    routeArguments = decisionArguments,
+                    routeArguments = effectiveArguments,
                     requestId = requestId,
                 )
             val userMessage =
@@ -192,7 +361,7 @@ class McpAgentService(
                     llmMessage = llmText,
                     userMessage = userMessage,
                     routeDecisionReason = decision.reason,
-                    resolvedArguments = decisionArguments,
+                    resolvedArguments = effectiveArguments,
                     starterUserId = starterUserId,
                     error = null,
                 ),
@@ -205,7 +374,7 @@ class McpAgentService(
                 maybeRespondWithRunningStatsFallback(
                     route,
                     ex,
-                    decisionArguments,
+                    effectiveArguments,
                     request,
                     starterUserId,
                     starterUsername,
@@ -218,10 +387,10 @@ class McpAgentService(
             if (fallbackResponse != null) {
                 return fallbackResponse
             }
-            val customMessage = resolveCustomErrorMessage(route, ex, decisionArguments)
+            val customMessage = resolveCustomErrorMessage(route, ex, effectiveArguments)
             val fallbackNotFound =
                 if (customMessage == null && ex.statusCode == HttpStatus.NOT_FOUND.value()) {
-                    decisionArguments?.get("username")?.takeIf { it.isNotBlank() }?.let {
+                    effectiveArguments?.get("username")?.takeIf { it.isNotBlank() }?.let {
                         "No user named '$it' was found."
                     } ?: "No user was found."
                 } else {
@@ -263,7 +432,7 @@ class McpAgentService(
                         llmMessage = payload,
                         userMessage = summary,
                         routeDecisionReason = decision.reason,
-                        resolvedArguments = decisionArguments,
+                        resolvedArguments = effectiveArguments,
                         starterUserId = starterUserId,
                         error = summary,
                     ),
@@ -281,7 +450,7 @@ class McpAgentService(
                     llmMessage = finalMessage,
                     userMessage = finalMessage ?: errorMessage,
                     routeDecisionReason = decision.reason,
-                    resolvedArguments = decisionArguments,
+                    resolvedArguments = effectiveArguments,
                     starterUserId = starterUserId,
                     error = errorMessage,
                 ),
@@ -299,7 +468,7 @@ class McpAgentService(
                     llmMessage = null,
                     userMessage = ex.message ?: "Agent request failed.",
                     routeDecisionReason = decision.reason,
-                    resolvedArguments = decisionArguments,
+                    resolvedArguments = effectiveArguments,
                     starterUserId = starterUserId,
                     error = ex.message ?: "Agent request failed.",
                 ),
@@ -533,6 +702,18 @@ class McpAgentService(
         }
     }
 
+    private fun extractUserIdFromLookup(apiBody: String?): UUID? {
+        if (apiBody.isNullOrBlank()) {
+            return null
+        }
+        return try {
+            val userIdText = objectMapper.readTree(apiBody).path("userId").asText()
+            if (userIdText.isBlank()) null else UUID.fromString(userIdText)
+        } catch (ex: Exception) {
+            null
+        }
+    }
+
     private fun maybeRespondWithRunningStatsFallback(
         route: McpRoute,
         exception: ExternalApiCallException,
@@ -690,6 +871,8 @@ class McpAgentService(
         private const val ROUTE_SELECTION_HISTORY_LIMIT = 5
         private const val HISTORY_RESET_MARKER_PREFIX = "__MCP_HISTORY_RESET__:"
         private const val RUNNING_STATS_ROUTE_NAME = "Get User Running Statistics"
+        private const val RUNNING_STATS_BY_USERNAME_ROUTE_NAME = "Get User Running Statistics By Username"
+        private const val USER_BY_USERNAME_ROUTE_NAME = "Get User By Username"
         private val PLACEHOLDER_PATTERN = Pattern.compile("\\{([^}]+)}")
     }
 

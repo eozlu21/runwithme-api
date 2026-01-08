@@ -102,6 +102,34 @@ class McpPromptRouter {
                     ),
             ),
             McpRoute(
+                name = "Get User Running Statistics By Username",
+                description =
+                    "Return a user's running statistics by username handle (no '@'). Use for: 'mina's running stats', 'stats for @mina', 'running stats for username'.",
+                method = HttpMethod.GET,
+                pathTemplate = "api/v1/users/username/{username}/statistics",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "username",
+                            description =
+                                "Username handle to look up (no '@').",
+                            required = true,
+                        ),
+                        McpRouteParameter(
+                            name = "days",
+                            description =
+                                "Optional lookback window in days (e.g., 7 or 30) for period stats. Omit for all-time stats.",
+                            required = false,
+                            location = McpRouteParameterLocation.QUERY,
+                        ),
+                    ),
+                errorTemplates =
+                    mapOf(
+                        HttpStatus.NOT_FOUND.value() to
+                            "No user named '{username}' was found.",
+                    ),
+            ),
+            McpRoute(
                 name = "Send Friend Request",
                 description =
                     "Send/create a friend request from a specified sender username to a specified receiver username. Use for MCP testing only.",
