@@ -74,6 +74,34 @@ class McpPromptRouter {
                     ),
             ),
             McpRoute(
+                name = "Get User Running Statistics",
+                description =
+                    "Return a user's running statistics (total runs, total distance, average pace, runs per week, km per week, all-time totals). Use for: 'my stats', 'running stats', 'my running statistics', 'total distance', 'average pace', 'runs per week', 'how many runs'.",
+                method = HttpMethod.GET,
+                pathTemplate = "api/v1/users/{userId}/statistics",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "userId",
+                            description =
+                                "UUID of the user whose running stats will be fetched (usually the authenticated user).",
+                            required = true,
+                        ),
+                        McpRouteParameter(
+                            name = "days",
+                            description =
+                                "Optional lookback window in days (e.g., 7 or 30) for period stats. Omit for all-time stats.",
+                            required = false,
+                            location = McpRouteParameterLocation.QUERY,
+                        ),
+                    ),
+                errorTemplates =
+                    mapOf(
+                        HttpStatus.NOT_FOUND.value() to
+                            "User '{userId}' was not found.",
+                    ),
+            ),
+            McpRoute(
                 name = "Send Friend Request",
                 description =
                     "Send/create a friend request from a specified sender username to a specified receiver username. Use for MCP testing only.",
