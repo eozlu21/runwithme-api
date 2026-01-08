@@ -1,8 +1,10 @@
 package com.runwithme.runwithme.api.mcp
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.runwithme.runwithme.api.dto.ChatEvent
 import com.runwithme.runwithme.api.dto.CreateMessageRequest
 import com.runwithme.runwithme.api.dto.MessageDto
+import com.runwithme.runwithme.api.dto.MessageType
 import com.runwithme.runwithme.api.entity.Message
 import com.runwithme.runwithme.api.repository.MessageRepository
 import com.runwithme.runwithme.api.repository.UserRepository
@@ -198,7 +200,12 @@ class McpChatAutoReplyHandler(
                 senderUsername = agentUsername,
                 recipientUsername = senderUsername,
             )
-        messagingTemplateProvider.ifAvailable?.convertAndSendToUser(senderUsername, "/queue/messages", dto)
+        val event =
+            ChatEvent(
+                type = MessageType.NEW_MESSAGE,
+                payload = dto,
+            )
+        messagingTemplateProvider.ifAvailable?.convertAndSendToUser(senderUsername, "/queue/messages", event)
     }
 
     private fun agentUserIdOrNull(): UUID? {

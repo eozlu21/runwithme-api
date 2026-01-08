@@ -1,14 +1,19 @@
 package com.runwithme.runwithme.api.mcp
 
+import com.runwithme.runwithme.api.dto.FriendRequestDto
 import com.runwithme.runwithme.api.dto.MessageDto
 import com.runwithme.runwithme.api.dto.PageResponse
+import com.runwithme.runwithme.api.entity.FriendRequestStatus
+import com.runwithme.runwithme.api.repository.FriendRequestRepository
 import com.runwithme.runwithme.api.repository.MessageRepository
 import com.runwithme.runwithme.api.repository.UserRepository
+import com.runwithme.runwithme.api.service.FriendshipService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.persistence.EntityManager
 import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.HttpHeaders
@@ -44,6 +49,8 @@ class McpController(
     private val messageRepository: MessageRepository,
     private val properties: McpProperties,
     private val entityManager: EntityManager,
+    private val friendshipService: FriendshipService,
+    private val friendRequestRepository: FriendRequestRepository,
 ) {
     // Exposes the agent over HTTP for quick manual tests.
     @PostMapping("/run")
@@ -172,6 +179,128 @@ class McpController(
         return ResponseEntity.noContent().build()
     }
 
+    @PostMapping("/whitelist/friends/requests")
+    @Operation(
+        summary = "Send a friend request by username",
+        description =
+            """
+            Sends a friend request from a specified sender username to a specified receiver username.
+            """,
+    )
+    fun sendFriendRequestByUsername(
+        @Valid @RequestBody request: McpSendFriendRequestByUsernameRequest,
+    ): ResponseEntity<FriendRequestDto> {
+        val senderUsername = request.senderUsername.trim()
+        val receiverUsername = request.receiverUsername.trim()
+
+        val sender =
+            userRepository
+                .findByUsername(senderUsername)
+                .orElseThrow { NoSuchElementException("User not found: $senderUsername") }
+        val receiver =
+            userRepository
+                .findByUsername(receiverUsername)
+                .orElseThrow { NoSuchElementException("User not found: $receiverUsername") }
+
+        val senderId = sender.userId ?: throw IllegalStateException("User id missing for $senderUsername")
+        val receiverId = receiver.userId ?: throw IllegalStateException("User id missing for $receiverUsername")
+
+        val result =
+            friendshipService.sendFriendRequest(
+                senderId = senderId,
+                receiverId = receiverId,
+                message = null,
+            )
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(result)
+    }
+
+    @PostMapping("/whitelist/friends/requests/accept")
+    @Operation(
+        summary = "Accept a friend request by username",
+        description =
+            """
+            Accepts a pending friend request using sender/receiver usernames.
+            """,
+    )
+    fun acceptFriendRequestByUsername(
+        @Valid @RequestBody request: McpAcceptFriendRequestByUsernameRequest,
+    ): ResponseEntity<FriendRequestDto> {
+        val senderUsername = request.senderUsername.trim()
+        val receiverUsername = request.receiverUsername.trim()
+
+        val sender =
+            userRepository
+                .findByUsername(senderUsername)
+                .orElseThrow { NoSuchElementException("User not found: $senderUsername") }
+        val receiver =
+            userRepository
+                .findByUsername(receiverUsername)
+                .orElseThrow { NoSuchElementException("User not found: $receiverUsername") }
+
+        val senderId = sender.userId ?: throw IllegalStateException("User id missing for $senderUsername")
+        val receiverId = receiver.userId ?: throw IllegalStateException("User id missing for $receiverUsername")
+
+        val requestId =
+            friendRequestRepository
+                .findBetweenUsersWithStatus(senderId, receiverId, FriendRequestStatus.PENDING)
+                .orElseThrow { NoSuchElementException("Pending friend request not found") }
+                .requestId
+                ?: throw IllegalStateException("Friend request id missing")
+
+        val result =
+            friendshipService.respondToFriendRequest(
+                requestId = requestId,
+                responderId = receiverId,
+                accept = FriendRequestStatus.ACCEPTED,
+            )
+
+        return ResponseEntity.ok(result)
+    }
+
+    @PostMapping("/whitelist/friends/requests/reject")
+    @Operation(
+        summary = "Reject a friend request by username",
+        description =
+            """
+            Rejects a pending friend request using sender/receiver usernames.
+            """,
+    )
+    fun rejectFriendRequestByUsername(
+        @Valid @RequestBody request: McpRejectFriendRequestByUsernameRequest,
+    ): ResponseEntity<FriendRequestDto> {
+        val senderUsername = request.senderUsername.trim()
+        val receiverUsername = request.receiverUsername.trim()
+
+        val sender =
+            userRepository
+                .findByUsername(senderUsername)
+                .orElseThrow { NoSuchElementException("User not found: $senderUsername") }
+        val receiver =
+            userRepository
+                .findByUsername(receiverUsername)
+                .orElseThrow { NoSuchElementException("User not found: $receiverUsername") }
+
+        val senderId = sender.userId ?: throw IllegalStateException("User id missing for $senderUsername")
+        val receiverId = receiver.userId ?: throw IllegalStateException("User id missing for $receiverUsername")
+
+        val requestId =
+            friendRequestRepository
+                .findBetweenUsersWithStatus(senderId, receiverId, FriendRequestStatus.PENDING)
+                .orElseThrow { NoSuchElementException("Pending friend request not found") }
+                .requestId
+                ?: throw IllegalStateException("Friend request id missing")
+
+        val result =
+            friendshipService.respondToFriendRequest(
+                requestId = requestId,
+                responderId = receiverId,
+                accept = FriendRequestStatus.REJECTED,
+            )
+
+        return ResponseEntity.ok(result)
+    }
+
     private fun requireAuthenticatedUser(authentication: Authentication): AuthenticatedUser {
         val username = authentication.name
         val userId =
@@ -198,3 +327,24 @@ class McpController(
         return AgentIdentity(userId = userId, username = username)
     }
 }
+
+data class McpSendFriendRequestByUsernameRequest(
+    @field:NotBlank(message = "senderUsername must not be blank")
+    val senderUsername: String,
+    @field:NotBlank(message = "receiverUsername must not be blank")
+    val receiverUsername: String,
+)
+
+data class McpAcceptFriendRequestByUsernameRequest(
+    @field:NotBlank(message = "senderUsername must not be blank")
+    val senderUsername: String,
+    @field:NotBlank(message = "receiverUsername must not be blank")
+    val receiverUsername: String,
+)
+
+data class McpRejectFriendRequestByUsernameRequest(
+    @field:NotBlank(message = "senderUsername must not be blank")
+    val senderUsername: String,
+    @field:NotBlank(message = "receiverUsername must not be blank")
+    val receiverUsername: String,
+)

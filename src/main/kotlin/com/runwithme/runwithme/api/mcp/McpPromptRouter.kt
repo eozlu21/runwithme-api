@@ -13,7 +13,7 @@ class McpPromptRouter {
             McpRoute(
                 name = "Get User Profile",
                 description =
-                    "Fetch a user's profile details by user id (e.g., firstName, lastName, pronouns, birthday, expertLevel, profileVisibility). Use for: 'Ben kimim?', 'profilim', 'zamirlerim', 'doğum günüm', 'uzmanlık seviyem'.",
+                    "Fetch a user's profile details by user id (e.g., firstName, lastName, pronouns, birthday, expertLevel, profileVisibility). If the viewer cannot see the full profile, the API may return a limited profile view instead. Use for: 'Who am I?', 'my profile', 'my pronouns', 'my birthday', 'my expertise level'.",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/user-profiles/{id}",
                 parameters =
@@ -34,7 +34,7 @@ class McpPromptRouter {
             McpRoute(
                 name = "Get User By Username",
                 description =
-                    "Find a user by username handle (e.g., 'minaaa' without '@') and return the matching user's basic account/profile info. Use for: '@minaaa var mı?', 'kullanıcı adı minaaa'. Not for searching by real name (e.g., 'Mina adında biri').",
+                    "Find a user by username handle (e.g., 'minaaa' without '@') and return the matching user's basic account info (UserDto: userId, username, email, createdAt, emailVerified). Use for: 'Is there a user @minaaa?', 'the username is minaaa'. Not for searching by real name (e.g., 'someone named Mina').",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/users/username/{username}",
                 parameters =
@@ -53,39 +53,166 @@ class McpPromptRouter {
                     ),
             ),
             McpRoute(
-                name = "Send Friend Request",
+                name = "Get User By Id",
                 description =
-                    "Send/create a friend request from the authenticated user to another user. Requires the target user's UUID (receiverId). Optionally include a short note (message). Use for: 'arkadaşlık isteği gönder', 'arkadaş ekle'.",
-                method = HttpMethod.POST,
-                pathTemplate = "api/v1/friends/requests",
+                    "Fetch a user's account info by user id and return the UserDto fields including username. Use for: 'what is my username', 'my account info'.",
+                method = HttpMethod.GET,
+                pathTemplate = "api/v1/users/{id}",
                 parameters =
                     listOf(
                         McpRouteParameter(
-                            name = "receiverId",
+                            name = "id",
                             description =
-                                "UUID of the user who should receive the friend request.",
+                                "UUID of the user whose account info will be fetched (usually the authenticated user).",
+                            required = true,
+                        ),
+                    ),
+                errorTemplates =
+                    mapOf(
+                        HttpStatus.NOT_FOUND.value() to
+                            "User '{id}' was not found.",
+                    ),
+            ),
+            McpRoute(
+                name = "Get User Running Statistics",
+                description =
+                    "Return a user's running statistics (total runs, total distance, average pace, runs per week, km per week, all-time totals). Use for: 'my stats', 'running stats', 'my running statistics', 'total distance', 'average pace', 'runs per week', 'how many runs'.",
+                method = HttpMethod.GET,
+                pathTemplate = "api/v1/users/{userId}/statistics",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "userId",
+                            description =
+                                "UUID of the user whose running stats will be fetched (usually the authenticated user).",
+                            required = true,
+                        ),
+                        McpRouteParameter(
+                            name = "days",
+                            description =
+                                "Optional lookback window in days (e.g., 7 or 30) for period stats. Omit for all-time stats.",
+                            required = false,
+                            location = McpRouteParameterLocation.QUERY,
+                        ),
+                    ),
+                errorTemplates =
+                    mapOf(
+                        HttpStatus.NOT_FOUND.value() to
+                            "User '{userId}' was not found.",
+                    ),
+            ),
+            McpRoute(
+                name = "Get User Running Statistics By Username",
+                description =
+                    "Return a user's running statistics by username handle (no '@'). Use for: 'mina's running stats', 'stats for @mina', 'running stats for username'.",
+                method = HttpMethod.GET,
+                pathTemplate = "api/v1/users/username/{username}/statistics",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "username",
+                            description =
+                                "Username handle to look up (no '@').",
+                            required = true,
+                        ),
+                        McpRouteParameter(
+                            name = "days",
+                            description =
+                                "Optional lookback window in days (e.g., 7 or 30) for period stats. Omit for all-time stats.",
+                            required = false,
+                            location = McpRouteParameterLocation.QUERY,
+                        ),
+                    ),
+                errorTemplates =
+                    mapOf(
+                        HttpStatus.NOT_FOUND.value() to
+                            "No user named '{username}' was found.",
+                    ),
+            ),
+            McpRoute(
+                name = "Send Friend Request",
+                description =
+                    "Send/create a friend request from a specified sender username to a specified receiver username. Use for MCP testing only.",
+                method = HttpMethod.POST,
+                pathTemplate = "api/v1/mcp/whitelist/friends/requests",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "senderUsername",
+                            description =
+                                "Username of the user sending the friend request (no '@').",
                             location = McpRouteParameterLocation.BODY,
                         ),
                         McpRouteParameter(
-                            name = "message",
+                            name = "receiverUsername",
                             description =
-                                "Optional note/message to include with the friend request.",
-                            required = false,
+                                "Username of the user receiving the friend request (no '@').",
+                            location = McpRouteParameterLocation.BODY,
+                        ),
+                    ),
+            ),
+            McpRoute(
+                name = "Accept Friend Request",
+                description =
+                    "Accept a pending friend request using sender and receiver usernames. Use for MCP testing only.",
+                method = HttpMethod.POST,
+                pathTemplate = "api/v1/mcp/whitelist/friends/requests/accept",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "senderUsername",
+                            description =
+                                "Username of the user who sent the friend request (no '@').",
+                            location = McpRouteParameterLocation.BODY,
+                        ),
+                        McpRouteParameter(
+                            name = "receiverUsername",
+                            description =
+                                "Username of the user who received the friend request (no '@').",
                             location = McpRouteParameterLocation.BODY,
                         ),
                     ),
                 errorTemplates =
                     mapOf(
                         HttpStatus.NOT_FOUND.value() to
-                            "User '{receiverId}' could not be found.",
-                        HttpStatus.CONFLICT.value() to
-                            "There is already a pending request with this user.",
+                            "No pending friend request from {senderUsername} to you was found.",
+                        HttpStatus.FORBIDDEN.value() to
+                            "You are not allowed to respond to {senderUsername}'s friend request.",
+                    ),
+            ),
+            McpRoute(
+                name = "Reject Friend Request",
+                description =
+                    "Reject a pending friend request using sender and receiver usernames. Use for MCP testing only.",
+                method = HttpMethod.POST,
+                pathTemplate = "api/v1/mcp/whitelist/friends/requests/reject",
+                parameters =
+                    listOf(
+                        McpRouteParameter(
+                            name = "senderUsername",
+                            description =
+                                "Username of the user who sent the friend request (no '@').",
+                            location = McpRouteParameterLocation.BODY,
+                        ),
+                        McpRouteParameter(
+                            name = "receiverUsername",
+                            description =
+                                "Username of the user who received the friend request (no '@').",
+                            location = McpRouteParameterLocation.BODY,
+                        ),
+                    ),
+                errorTemplates =
+                    mapOf(
+                        HttpStatus.NOT_FOUND.value() to
+                            "No pending friend request from {senderUsername} to you was found.",
+                        HttpStatus.FORBIDDEN.value() to
+                            "You are not allowed to respond to {senderUsername}'s friend request.",
                     ),
             ),
             McpRoute(
                 name = "Received Friend Requests",
                 description =
-                    "List pending friend requests received by the authenticated user (incoming requests). Supports pagination via page/size. Use for: 'gelen istekler', 'bana gelen arkadaşlık istekleri'.",
+                    "List pending friend requests received by the authenticated user (incoming requests). Supports pagination via page/size. Use for: 'incoming friend requests', 'friend requests I received'.",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/friends/requests/received",
                 parameters =
@@ -109,7 +236,7 @@ class McpPromptRouter {
             McpRoute(
                 name = "Sent Friend Requests",
                 description =
-                    "List pending friend requests created by the authenticated user (outgoing requests). Supports pagination via page/size. Use for: 'gönderdiğim istekler', 'bekleyen isteklerim'.",
+                    "List pending friend requests created by the authenticated user (outgoing requests). Supports pagination via page/size. Use for: 'sent friend requests', 'my pending friend requests'.",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/friends/requests/sent",
                 parameters =
@@ -133,7 +260,7 @@ class McpPromptRouter {
             McpRoute(
                 name = "Friend Suggestions",
                 description =
-                    "List suggested profiles to add as friends (recommendations, e.g., friends-of-friends). Supports pagination via page/size. Use for: 'arkadaş öner', 'arkadaş önerileri'.",
+                    "List suggested profiles to add as friends (recommendations, e.g., friends-of-friends). Supports pagination via page/size. Use for: 'suggest friends', 'friend recommendations'.",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/friends/suggestions",
                 parameters =
@@ -157,14 +284,14 @@ class McpPromptRouter {
             McpRoute(
                 name = "Friend Stats",
                 description =
-                    "Return friend summary counts for the authenticated user (e.g., total friends, pending incoming requests, pending outgoing requests). Use for: 'kaç arkadaşım var?', 'arkadaş istatistiklerim'.",
+                    "Return friend summary counts for the authenticated user (e.g., total friends, pending incoming requests, pending outgoing requests). Use for: 'how many friends do I have?', 'my friend stats'.",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/friends/stats",
             ),
             McpRoute(
                 name = "Specific User Friends",
                 description =
-                    "List a specific user's friends, if the authenticated viewer has permission to see them. Supports pagination via page/size. Use for: 'X kullanıcısının arkadaşları'.",
+                    "List a specific user's friends, if the authenticated viewer has permission to see them. Supports pagination via page/size. Use for: 'a user's friends list', 'show this user's friends'.",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/friends/user/{userId}",
                 parameters =
@@ -200,7 +327,7 @@ class McpPromptRouter {
             McpRoute(
                 name = "My Survey Responses",
                 description =
-                    "List survey responses previously submitted by the authenticated user (their own submissions/history). Use for: 'anket cevaplarım', 'gönderdiğim anketler'.",
+                    "List survey responses previously submitted by the authenticated user (their own submissions/history). Use for: 'my survey responses', 'surveys I submitted'.",
                 method = HttpMethod.GET,
                 pathTemplate = "api/v1/survey-responses/my",
             ),
