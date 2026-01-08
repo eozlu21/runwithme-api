@@ -53,7 +53,7 @@ class McpAgentService(
                 emptyList()
             } else {
                 loadChatHistory(starterUserId, agentIdentity)
-        }
+            }
         if (persistUserPrompt) {
             recordChatMessage(
                 senderUsername = starterUsername,
@@ -863,8 +863,10 @@ class McpAgentService(
         return objectMapper.writeValueAsString(response)
     }
 
-    private fun roundTo(value: Double, scale: Int): Double =
-        BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP).toDouble()
+    private fun roundTo(
+        value: Double,
+        scale: Int,
+    ): Double = BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP).toDouble()
 
     companion object {
         private const val CHAT_HISTORY_LIMIT = 10
